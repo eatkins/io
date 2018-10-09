@@ -325,8 +325,12 @@ object IO {
       } catch {
         case _: FileAlreadyExistsException =>
           sys.error(failBase + ": file exists and is not a directory.")
-        case _: IOException if count < 5 => create(count + 1)
-        case _: IOException              => sys.error(failBase)
+        case _: IOException if count < 5 =>
+          if (!Files.isDirectory(path)) {
+            if (scala.util.Properties.isWin) Thread.sleep(20)
+            create(count + 1)
+          }
+        case e: IOException => sys.error(failBase)
       }
     if (!Files.isDirectory(path)) create()
   }
