@@ -159,6 +159,19 @@ final class Source(
   def withRecursive(recursive: Boolean): Source =
     new Source(base, includeFilter, excludeFilter, recursive)
 
+  def withFilter(fileFilter: FileFilter): Source =
+    new Source(base, fileFilter, excludeFilter, recursive = this.recursive)
+  def withBase(file: File): Source = new Source(file, includeFilter, excludeFilter, recursive)
+  def glob(fileFilter: FileFilter): Source =
+    new Source(base, fileFilter, excludeFilter, recursive = false)
+  def globRecursive(fileFilter: FileFilter): Source =
+    new Source(base, fileFilter, excludeFilter, recursive = true)
+  def *(fileFilter: FileFilter): Source = glob(fileFilter)
+  def **(fileFilter: FileFilter): Source = globRecursive(fileFilter)
+  def &&(fileFilter: FileFilter): Source = withFilter(fileFilter)
+  def --(fileFilter: FileFilter): Source = withFilter(includeFilter -- fileFilter)
+  def ||(fileFilter: FileFilter): Source = withFilter(includeFilter || fileFilter)
+
   override def toString: String =
     s"""Source(
        |  base = $base,
