@@ -579,3 +579,39 @@ private class Paths(a: PathFinder, b: PathFinder) extends PathFinder {
 private class ExcludeFiles(include: PathFinder, exclude: PathFinder) extends PathFinder {
   override def get(): Seq[File] = (include.get().toSet -- exclude.get()).toSeq
 }
+
+class PathFinderInput(val base: File, val filter: FileFilter, val recursive: Boolean) {
+  def /(literal: String): PathFinderInput =
+    new PathFinderInput(new File(base, literal), filter, recursive)
+  final def \(literal: String): PathFinderInput = this / literal
+  def withBase(file: File): PathFinderInput = new PathFinderInput(file, filter, recursive)
+  def withFilter(fileFilter: FileFilter): PathFinderInput =
+    new PathFinderInput(base, fileFilter, recursive = this.recursive)
+  def withRecursive(recursive: Boolean): PathFinderInput =
+    new PathFinderInput(base, filter, recursive)
+  def glob(fileFilter: FileFilter): PathFinderInput =
+    new PathFinderInput(base, fileFilter, recursive = false)
+  def globRecursive(fileFilter: FileFilter): PathFinderInput =
+    new PathFinderInput(base, fileFilter, recursive = true)
+  // syntax dsl
+  def *(fileFilter: FileFilter): PathFinderInput = glob(fileFilter)
+  def **(fileFilter: FileFilter): PathFinderInput = globRecursive(fileFilter)
+  def &&(fileFilter: FileFilter): PathFinderInput = withFilter(filter && fileFilter)
+  def --(fileFilter: FileFilter): PathFinderInput = withFilter(filter -- fileFilter)
+  def ||(fileFilter: FileFilter): PathFinderInput = withFilter(filter || fileFilter)
+}
+object PathFinderInput {
+  def pathFinder(input: PathFinderInput, f: (File, FileFilter, Boolean) => Seq[File]): PathFinder =
+    PathFinder(f(input.base, input.filter, input.recursive))
+  implicit class PathFinderInputAsPathFinder(val p: PathFinderInput) extends PathFinder {
+    override def get(): Seq[File] = {
+      if (p.recursive) {
+        val res = mutable.Set.empty[File]
+        Path.defaultDescendantHandler(p.base, p.filter, res)
+        res.toIndexedSeq
+      } else {
+        Path.defaultChildHandler(p.base, p.filter)
+      }
+    }
+  }
+}
