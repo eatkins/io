@@ -8,7 +8,7 @@ import java.nio.file.{ WatchService => _, _ }
 import java.util.concurrent.atomic.AtomicBoolean
 
 import sbt.io._
-import sbt.io.syntax._
+import sbt.io.syntax.File
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
@@ -93,10 +93,8 @@ private[sbt] final class WatchState private (
 
   /** Retrieve events from the `WatchService` */
   private[sbt] def pollEvents(): Iterable[(Path, WatchEvent[_])] = {
-    val events = service.pollEvents
-    events.toIterable.flatMap {
-      case (k, evs) => evs.map((k.watchable().asInstanceOf[Path], _))
-    }
+    val events = service.pollEvents()
+    events.flatMap { case (k, evs) => evs.map((k.watchable().asInstanceOf[Path], _)) }
   }
 
   /** register a path with the watch service */
@@ -153,7 +151,8 @@ final class Source(
    * @return A sequence of all the paths collected from this source.
    */
   private[sbt] def getUnfilteredPaths(): Seq[Path] = {
-    val pathFinder = if (recursive) base.allPaths else base.glob(AllPassFilter)
+    val pathFinder =
+      if (recursive) PathFinder(base).allPaths else PathFinder(base).glob(AllPassFilter)
     pathFinder.get().map(_.toPath)
   }
 

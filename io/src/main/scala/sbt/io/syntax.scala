@@ -5,7 +5,12 @@ private[sbt] trait Alternative[A, B] {
 }
 
 sealed abstract class IOSyntax1 {
-  implicit def singleFileFinder(file: java.io.File): PathFinder = PathFinder(file)
+  def singleFileFinder(file: java.io.File): PathFinder = PathFinder(file)
+  implicit def singleFileFinderWithEvidence(file: java.io.File)(
+      implicit ev: syntax.Implicits.FileAsPathFinder.type): PathFinder = {
+    ev.unused() // Without this, we get a fatal error due to the unused parameter
+    PathFinder(file)
+  }
 }
 
 sealed abstract class IOSyntax0 extends IOSyntax1 {
@@ -25,4 +30,9 @@ object syntax extends IOSyntax0 {
 
   implicit def fileToRichFile(file: File): RichFile = new RichFile(file)
   implicit def filesToFinder(cc: Traversable[File]): PathFinder = PathFinder.strict(cc)
+  object Implicits {
+    implicit case object FileAsPathFinder {
+      private[io] def unused(): Unit = ()
+    }
+  }
 }
