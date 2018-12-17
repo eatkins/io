@@ -3,7 +3,6 @@ package sbt.io
 import java.io.{ File => JFile }
 import org.scalatest._
 import sbt.io.syntax._
-import sbt.io.syntax.Implicits.FileAsPathFinder
 
 class IOSyntaxSpec extends FlatSpec with Matchers {
   "file(...)" should "create File" in {
