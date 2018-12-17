@@ -18,6 +18,7 @@ import java.nio.file.{
 
 import com.swoval.files.FileTreeViews
 import com.swoval.functional.Filter
+import sbt.internal.io.Source
 import sbt.io.FileTreeView.AllPass
 
 import scala.collection.JavaConverters._
@@ -323,16 +324,15 @@ object Path extends Mapper {
 object PathFinder {
 
   /** A <code>PathFinder</code> that always produces the empty set of <code>Path</code>s.*/
-  val empty: PathFinder = new PathFinder { def addTo(fileSet: mutable.Set[File]) = () }
+  val empty: PathFinder = new PathFinderImpl { def addTo(fileSet: mutable.Set[File]) = () }
 
   def apply(file: File): PathFinder = new SingleFile(file)
 
-  def apply(files: => Traversable[File]): PathFinder = new PathFinder {
+  def apply(files: => Traversable[File]): PathFinder = new PathFinderImpl {
     def addTo(fileSet: mutable.Set[File]) = { fileSet ++= files; () }
   }
 
   def strict(files: Traversable[File]): PathFinder = apply(files)
-
 }
 
 /**
@@ -420,12 +420,7 @@ sealed abstract class PathFinder {
    * The files returned by this method will reflect the underlying filesystem at the time of calling.
    * If the filesystem changes, two calls to this method might be different.
    */
-  final def get(): Seq[File] = {
-    import scala.collection.JavaConverters._
-    val pathSet: mutable.Set[File] = (new java.util.LinkedHashSet[File]).asScala
-    addTo(pathSet)
-    pathSet.toSeq
-  }
+  def get(): Seq[File]
 
   /**
    * Only keeps paths for which `f` returns true.
@@ -440,15 +435,13 @@ sealed abstract class PathFinder {
   final def getURLs(): Array[URL] = get().toArray.map(_.toURI.toURL)
 
   /** Evaluates this finder and converts the results to a distinct sequence of absolute path strings. */
-  final def getPaths(): Seq[String] = get().map(_.absolutePath)
-
-  private[sbt] def addTo(fileSet: mutable.Set[File]): Unit
+  final def getPaths(): Seq[String] = get().map(_.getAbsolutePath)
 
   /**
    * Create a PathFinder from this one where each path has a unique name.
    * A single path is arbitrarily selected from the set of paths with the same name.
    */
-  def distinct(): PathFinder = PathFinder { get().map(p => (p.asFile.getName, p)).toMap.values }
+  def distinct(): PathFinder = PathFinder { get().map(p => (p.getName, p)).toMap.values }
 
   /**
    * Constructs a string by evaluating this finder, converting the resulting Paths to absolute path strings,
@@ -460,11 +453,23 @@ sealed abstract class PathFinder {
   override def toString() = get().mkString("\n   ", "\n   ", "")
 }
 
-private class SingleFile(asFile: File) extends PathFinder {
+private trait PathFinderImpl extends PathFinder {
+
+  private[sbt] def addTo(fileSet: mutable.Set[File]): Unit
+
+  override def get(): Seq[File] = {
+    import scala.collection.JavaConverters._
+    val pathSet: mutable.Set[File] = new java.util.LinkedHashSet[File].asScala
+    addTo(pathSet)
+    pathSet.toSeq
+  }
+}
+
+private class SingleFile(asFile: File) extends PathFinderImpl {
   private[sbt] def addTo(fileSet: mutable.Set[File]) = if (asFile.exists) { fileSet += asFile; () }
 }
 
-private abstract class FilterFiles extends PathFinder with FileFilter {
+private abstract class FilterFiles extends PathFinderImpl with FileFilter {
   def parent: PathFinder
   def filter: FileFilter
 
@@ -554,20 +559,20 @@ private class ChildPathFinder(val parent: PathFinder, val filter: FileFilter) ex
       handleFile(file, fileSet)
 }
 
-private class Paths(a: PathFinder, b: PathFinder) extends PathFinder {
+private class Paths(a: PathFinder, b: PathFinder) extends PathFinderImpl {
   private[sbt] def addTo(fileSet: mutable.Set[File]) = {
-    a.addTo(fileSet)
-    b.addTo(fileSet)
+    fileSet ++= a.get()
+    fileSet ++= b.get()
   }
 }
 
-private class ExcludeFiles(include: PathFinder, exclude: PathFinder) extends PathFinder {
+private class ExcludeFiles(include: PathFinder, exclude: PathFinder) extends PathFinderImpl {
   private[sbt] def addTo(pathSet: mutable.Set[File]) = {
     val includeSet = new mutable.LinkedHashSet[File]
-    include.addTo(includeSet)
+    includeSet ++= include.get()
 
     val excludeSet = new mutable.HashSet[File]
-    exclude.addTo(excludeSet)
+    excludeSet ++= exclude.get()
 
     includeSet --= excludeSet
     pathSet ++= includeSet
