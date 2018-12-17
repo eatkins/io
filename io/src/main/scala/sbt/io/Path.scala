@@ -323,16 +323,15 @@ object Path extends Mapper {
 object PathFinder {
 
   /** A <code>PathFinder</code> that always produces the empty set of <code>Path</code>s.*/
-  val empty: PathFinder = new PathFinder { def addTo(fileSet: mutable.Set[File]) = () }
+  val empty: PathFinder = new PathFinder {}
 
   def apply(file: File): PathFinder = new SingleFile(file)
 
   def apply(files: => Traversable[File]): PathFinder = new PathFinder {
-    def addTo(fileSet: mutable.Set[File]) = { fileSet ++= files; () }
+    override def get(): Seq[File] = files.toIndexedSeq.distinct
   }
 
   def strict(files: Traversable[File]): PathFinder = apply(files)
-
 }
 
 /**
@@ -343,6 +342,21 @@ object PathFinder {
 sealed abstract class PathFinder {
   import Path._
   import syntax._
+
+  /**
+   * Evaluates this finder and converts the results to a `Seq` of distinct `File`s.
+   * The files returned by this method will reflect the underlying filesystem at the time of calling.
+   * If the filesystem changes, two calls to this method might be different.
+   */
+  def get(): Seq[File] = Nil
+
+  /**
+   * This is a vestigial implementation detail that shouldn't have made it into the base class
+   * definition. It can't be moved into [[PathFinderImpl]] without breaking binary compatibility
+   * unfortunately.
+   * @param fileSet the result set to append files to
+   */
+  private[sbt] def addTo(fileSet: mutable.Set[File]): Unit = ()
 
   /** The union of the paths found by this <code>PathFinder</code> with the paths found by 'paths'. */
   def +++(paths: PathFinder): PathFinder = new Paths(this, paths)
@@ -416,18 +430,6 @@ sealed abstract class PathFinder {
     this ** (include -- intermediateExclude)
 
   /**
-   * Evaluates this finder and converts the results to a `Seq` of distinct `File`s.
-   * The files returned by this method will reflect the underlying filesystem at the time of calling.
-   * If the filesystem changes, two calls to this method might be different.
-   */
-  final def get(): Seq[File] = {
-    import scala.collection.JavaConverters._
-    val pathSet: mutable.Set[File] = (new java.util.LinkedHashSet[File]).asScala
-    addTo(pathSet)
-    pathSet.toSeq
-  }
-
-  /**
    * Only keeps paths for which `f` returns true.
    * It is non-strict, so it is not evaluated until the returned finder is evaluated.
    */
@@ -441,8 +443,6 @@ sealed abstract class PathFinder {
 
   /** Evaluates this finder and converts the results to a distinct sequence of absolute path strings. */
   final def getPaths(): Seq[String] = get().map(_.absolutePath)
-
-  private[sbt] def addTo(fileSet: mutable.Set[File]): Unit
 
   /**
    * Create a PathFinder from this one where each path has a unique name.
@@ -460,11 +460,29 @@ sealed abstract class PathFinder {
   override def toString() = get().mkString("\n   ", "\n   ", "")
 }
 
-private class SingleFile(asFile: File) extends PathFinder {
-  private[sbt] def addTo(fileSet: mutable.Set[File]) = if (asFile.exists) { fileSet += asFile; () }
+private abstract class PathFinderImpl extends PathFinder {
+
+  /**
+   * Evaluates this finder and converts the results to a `Seq` of distinct `File`s.
+   * The files returned by this method will reflect the underlying filesystem at the time of calling.
+   * If the filesystem changes, two calls to this method might be different.
+   */
+  override final def get(): Seq[File] = {
+    import scala.collection.JavaConverters._
+    val pathSet: mutable.Set[File] = new java.util.LinkedHashSet[File].asScala
+    addTo(pathSet)
+    pathSet.toSeq
+  }
+
+  private[sbt] override def addTo(fileSet: mutable.Set[File]): Unit
 }
 
-private abstract class FilterFiles extends PathFinder with FileFilter {
+private class SingleFile(asFile: File) extends PathFinderImpl {
+  private[sbt] override def addTo(fileSet: mutable.Set[File]): Unit =
+    if (asFile.exists) { fileSet += asFile; () }
+}
+
+private abstract class FilterFiles extends PathFinderImpl with FileFilter {
   def parent: PathFinder
   def filter: FileFilter
 
@@ -483,7 +501,7 @@ private class DescendantOrSelfPathFinder(
     extends FilterFiles {
   def this(parent: PathFinder, filter: FileFilter) =
     this(parent, filter, DescendantOrSelfPathFinder.nio _)
-  private[sbt] def addTo(fileSet: mutable.Set[File]) = {
+  private[sbt] override def addTo(fileSet: mutable.Set[File]): Unit = {
     for (file <- parent.get()) {
       if (accept(file)) fileSet += file
       handleFileDescendant(file, filter, fileSet)
@@ -549,28 +567,15 @@ private object DescendantOrSelfPathFinder {
 }
 
 private class ChildPathFinder(val parent: PathFinder, val filter: FileFilter) extends FilterFiles {
-  private[sbt] def addTo(fileSet: mutable.Set[File]) =
+  private[sbt] override def addTo(fileSet: mutable.Set[File]): Unit =
     for (file <- parent.get())
       handleFile(file, fileSet)
 }
 
 private class Paths(a: PathFinder, b: PathFinder) extends PathFinder {
-  private[sbt] def addTo(fileSet: mutable.Set[File]) = {
-    a.addTo(fileSet)
-    b.addTo(fileSet)
-  }
+  override def get(): Seq[File] = (a.get() ++ b.get()).distinct
 }
 
 private class ExcludeFiles(include: PathFinder, exclude: PathFinder) extends PathFinder {
-  private[sbt] def addTo(pathSet: mutable.Set[File]) = {
-    val includeSet = new mutable.LinkedHashSet[File]
-    include.addTo(includeSet)
-
-    val excludeSet = new mutable.HashSet[File]
-    exclude.addTo(excludeSet)
-
-    includeSet --= excludeSet
-    pathSet ++= includeSet
-    ()
-  }
+  override def get(): Seq[File] = (include.get().toSet -- exclude.get()).toSeq
 }
