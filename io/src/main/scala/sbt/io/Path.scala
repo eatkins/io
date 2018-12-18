@@ -18,6 +18,8 @@ import java.nio.file.{
 
 import com.swoval.files.FileTreeViews
 import com.swoval.functional.Filter
+import sbt.internal.io.Source
+import sbt.io
 import sbt.io.FileTreeView.AllPass
 
 import scala.collection.JavaConverters._
@@ -383,7 +385,7 @@ sealed abstract class PathFinder {
     new DescendantOrSelfPathFinder(this, filter, walker)
 
   /** Alias of globRecursive. */
-  final def **(filter: FileFilter): PathFinder = globRecursive(filter)
+  def **(filter: FileFilter): PathFinder = globRecursive(filter)
 
   def allPaths: PathFinder = **(AllPassFilter)
 
@@ -395,7 +397,7 @@ sealed abstract class PathFinder {
   def glob(filter: FileFilter): PathFinder = new ChildPathFinder(this, filter)
 
   /** Alias of glob */
-  final def *(filter: FileFilter): PathFinder = glob(filter)
+  def *(filter: FileFilter): PathFinder = glob(filter)
 
   /**
    * Constructs a new finder that selects all paths with name <code>literal</code>
@@ -580,25 +582,34 @@ private class ExcludeFiles(include: PathFinder, exclude: PathFinder) extends Pat
   override def get(): Seq[File] = (include.get().toSet -- exclude.get()).toSeq
 }
 
-class PathFinderInput(val base: File, val filter: FileFilter, val recursive: Boolean) {
-  def /(literal: String): PathFinderInput =
+class PathFinderInput(val base: File, val filter: FileFilter, val recursive: Boolean)
+    extends PathFinder {
+  override final def get(): Seq[syntax.File] = toPathFinder.get()
+  override def /(literal: String): PathFinder =
     new PathFinderInput(new File(base, literal), filter, recursive)
-  final def \(literal: String): PathFinderInput = this / literal
   def withBase(file: File): PathFinderInput = new PathFinderInput(file, filter, recursive)
   def withFilter(fileFilter: FileFilter): PathFinderInput =
     new PathFinderInput(base, fileFilter, recursive = this.recursive)
   def withRecursive(recursive: Boolean): PathFinderInput =
     new PathFinderInput(base, filter, recursive)
-  def glob(fileFilter: FileFilter): PathFinderInput =
+  override def glob(fileFilter: FileFilter): PathFinderInput =
     new PathFinderInput(base, fileFilter, recursive = false)
-  def globRecursive(fileFilter: FileFilter): PathFinderInput =
+  override def globRecursive(fileFilter: FileFilter): PathFinderInput =
     new PathFinderInput(base, fileFilter, recursive = true)
   // syntax dsl
-  def *(fileFilter: FileFilter): PathFinderInput = glob(fileFilter)
-  def **(fileFilter: FileFilter): PathFinderInput = globRecursive(fileFilter)
+  override def *(fileFilter: FileFilter): PathFinderInput = glob(fileFilter)
+  override def **(fileFilter: FileFilter): PathFinderInput = globRecursive(fileFilter)
   def &&(fileFilter: FileFilter): PathFinderInput = withFilter(filter && fileFilter)
   def --(fileFilter: FileFilter): PathFinderInput = withFilter(filter -- fileFilter)
   def ||(fileFilter: FileFilter): PathFinderInput = withFilter(filter || fileFilter)
+
+  override def descendantsExcept(include: FileFilter, intermediateExclude: FileFilter): PathFinder =
+    toPathFinder.descendantsExcept(include, intermediateExclude)
+  override def allPaths: PathFinder = toPathFinder.allPaths
+  def toSource: Source = new Source(base, filter, NothingFilter, recursive)
+  def toPathFinder: PathFinder = new io.PathFinderInput.PathFinderInputAsPathFinder(this)
+  override def toString: String =
+    s"PathFinderInput(\n  base = $base\n  filter = $filter\n  recursive = $recursive\n)"
 }
 object PathFinderInput {
   def pathFinder(input: PathFinderInput, f: (File, FileFilter, Boolean) => Seq[File]): PathFinder =
@@ -608,9 +619,12 @@ object PathFinderInput {
       if (p.recursive) {
         val res = mutable.Set.empty[File]
         Path.defaultDescendantHandler(p.base, p.filter, res)
+        println(s"WTF $p $res")
         res.toIndexedSeq
       } else {
-        Path.defaultChildHandler(p.base, p.filter)
+        val res = Path.defaultChildHandler(p.base, p.filter)
+        println(s"WTF child $p $res")
+        res
       }
     }
   }

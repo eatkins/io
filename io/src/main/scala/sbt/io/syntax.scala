@@ -9,7 +9,7 @@ sealed abstract class IOSyntax1 extends IOSyntax2 {
   // This enables the legacy implicit implementation, but only if the user explicitly
   // imports `sbt.io.syntax.implicits.FileAsPathFinder`
   implicit def singleFileFinderWithEvidence(file: java.io.File)(
-      implicit ev: syntax.implicits.FileAsPathFinder.type): PathFinder = {
+      implicit ev: syntax.FileAsPathFinder): PathFinder = {
     ev.unused() // Without this, we get a fatal error due to the unused parameter
     PathFinder(file)
   }
@@ -36,9 +36,8 @@ object syntax extends IOSyntax0 {
 
   implicit def fileToRichFile(file: File): RichFile = new RichFile(file)
   implicit def filesToFinder(cc: Traversable[File]): PathFinder = PathFinder.strict(cc)
+  sealed trait FileAsPathFinder { private[io] def unused(): Unit = () }
   object implicits {
-    implicit case object FileAsPathFinder {
-      private[io] def unused(): Unit = ()
-    }
+    implicit case object FileAsPathFinder extends FileAsPathFinder
   }
 }
