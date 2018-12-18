@@ -16,7 +16,7 @@ sealed abstract class IOSyntax1 extends IOSyntax2 {
 }
 sealed trait IOSyntax2 {
   implicit def singleFileInputFinder(file: java.io.File): PathFinderInput =
-    new PathFinderInput(file, new ExactFileFilter(file), recursive = false)
+    new PathFinderInput(file, new ExactFileFilter(file), -1)
 }
 
 sealed abstract class IOSyntax0 extends IOSyntax1 {
