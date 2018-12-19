@@ -767,6 +767,7 @@ object Glob {
     def withDepth(depth: Int): Glob = new GlobImpl(glob.base, glob.filter, depth)
     def withRecursive(recursive: Boolean): Glob =
       new GlobImpl(glob.base, glob.filter, if (recursive) Int.MaxValue else 0)
+    def toFilter: FileFilter = new GlobAsFilter(glob)
   }
   implicit class GlobPathFinder(val glob: Glob) extends PathFinder {
     override def get(): Seq[File] = {
@@ -779,6 +780,58 @@ object Glob {
       } else {
         Path.defaultChildHandler(glob.base, glob.filter)
       }
+    }
+  }
+
+  /**
+   * Provides a [[FileFilter]] given a [[Glob]].
+   * @param glob the glob to validate
+   */
+  final class GlobAsFilter(private val glob: Glob) extends FileFilter {
+    override def accept(pathname: File): Boolean = {
+      val path = pathname.toPath
+      val globPath = glob.base.toPath
+      if (path.startsWith(globPath)) {
+        if (path == globPath) {
+          glob.depth == -1 && glob.filter.accept(pathname)
+        } else {
+          val nameCount = globPath.relativize(path).getNameCount - 1
+          nameCount <= glob.depth && glob.filter.accept(pathname)
+        }
+      } else {
+        false
+      }
+    }
+    override def toString: String = s"GlobAsFilter($glob)"
+    override def equals(o: Any): Boolean = o match {
+      case that: GlobAsFilter => this.glob == that.glob
+      case _                  => false
+    }
+  }
+
+  /**
+   * Provides extension methods for converting a Traversable[Glob] into a file filter.
+   * @param t the collection of [[Glob]]s
+   * @tparam T the generic collection type
+   */
+  implicit class TraversableGlobOps[T <: Traversable[Glob]](val t: T) extends AnyVal {
+
+    /**
+     * Returns a [[FileFilter]] that accepts a file if any glob in the collection accepts the file.
+     * @return the [[FileFilter]].
+     */
+    def toFilter: FileFilter = new TraversableGlobOps.Filter(t)
+  }
+  private[sbt] object TraversableGlobOps {
+    private class Filter[T <: Traversable[Glob]](private val t: T) extends FileFilter {
+      private[this] val filters = t.map(_.toFilter)
+      override def accept(pathname: File): Boolean = filters.exists(_.accept(pathname))
+      override def equals(o: Any): Boolean = o match {
+        case that: Filter[_] => this.t == that.t
+        case _               => false
+      }
+      override def hashCode: Int = t.hashCode
+      override def toString: String = s"TraversableGlobFilter($t)"
     }
   }
 }
