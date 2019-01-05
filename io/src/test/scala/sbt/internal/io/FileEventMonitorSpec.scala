@@ -3,9 +3,9 @@ package sbt.internal.io
 import java.nio.file.{ Path, Paths }
 
 import org.scalatest.{ FlatSpec, Matchers }
-import sbt.io.{ FileEventMonitor, NullWatchLogger, TypedPath }
+import sbt.io.{ FileEventMonitor, NullWatchLogger, TypedPath, WatchLogger }
 import sbt.io.FileEventMonitor.{ Creation, Deletion, Update }
-import sbt.io.FileTreeDataView.{ Entry, Observers }
+import sbt.io.FileTreeDataView.{ Entry, Observable, Observers }
 
 import scala.concurrent.duration._
 
@@ -27,10 +27,14 @@ class FileEventMonitorSpec extends FlatSpec with Matchers {
     override def isFile: Boolean = (kind & FILE) != 0
     override def isSymbolicLink: Boolean = (kind & LINK) != 0
   }
+  private[sbt] def antiEntropyMonitor[T](observable: Observable[T],
+                                         period: FiniteDuration,
+                                         logger: WatchLogger): FileEventMonitor[T] =
+    FileEventMonitor.antiEntropy(observable, period, logger, 50.millis)
   "anti-entropy" should "ignore redundant events" in {
     val observers = new Observers[Path]
     val antiEntropyPeriod = 20.millis
-    val monitor = FileEventMonitor.antiEntropy(observers, antiEntropyPeriod, NullWatchLogger)
+    val monitor = antiEntropyMonitor(observers, antiEntropyPeriod, NullWatchLogger)
     val entry = TestEntry("foo", FILE | EXISTS)
     val start = Deadline.now
     observers.onCreate(entry)
@@ -46,7 +50,7 @@ class FileEventMonitorSpec extends FlatSpec with Matchers {
   it should "not ignore new events" in {
     val observers = new Observers[Path]
     val antiEntropyPeriod = 20.millis
-    val monitor = FileEventMonitor.antiEntropy(observers, antiEntropyPeriod, NullWatchLogger)
+    val monitor = antiEntropyMonitor(observers, antiEntropyPeriod, NullWatchLogger)
     val entry = TestEntry("foo", FILE | EXISTS)
     observers.onCreate(entry)
     observers.onUpdate(entry, entry)

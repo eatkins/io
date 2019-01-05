@@ -70,11 +70,17 @@ object FileEventMonitor {
   def antiEntropy[T](observable: Observable[T],
                      period: FiniteDuration,
                      logger: WatchLogger,
-                     quarantinePeriod: FiniteDuration = 50.millis): FileEventMonitor[T] = {
+                     quarantinePeriod: FiniteDuration): FileEventMonitor[T] = {
     new AntiEntropyFileEventMonitor(period,
                                     new FileEventMonitorImpl[T](observable, logger),
                                     logger,
                                     quarantinePeriod)
+  }
+  def antiEntropy[T](monitor: FileEventMonitor[T],
+                     period: FiniteDuration,
+                     logger: WatchLogger,
+                     quarantinePeriod: FiniteDuration): FileEventMonitor[T] = {
+    new AntiEntropyFileEventMonitor(period, monitor, logger, quarantinePeriod)
   }
 
   private class FileEventMonitorImpl[T](observable: Observable[T], logger: WatchLogger)
@@ -224,7 +230,7 @@ object FileEventMonitor {
           logger.debug(s"Triggering event for previously quarantined deleted file: $path")
           event
       }
-      antiEntropyDeadlines.retain((_, deadline) => !deadline.isOverdue)
+      antiEntropyDeadlines.retain((_, deadline) => !(deadline - 10.minutes).isOverdue)
       transformed match {
         case s if s.nonEmpty => s
         case _ =>
