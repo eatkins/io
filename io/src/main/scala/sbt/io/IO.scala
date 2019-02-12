@@ -1395,7 +1395,7 @@ object IO {
         case e: IOException if filter(e) && (attempt < limit) => (true, Left(e))
         case e: IOException                                   => (false, Left(e))
       }
-      if (retry) { impl(attempt + 1) } else {
+      if (retry) { Thread.sleep(0); impl(attempt + 1) } else {
         res match {
           case Right(r) => r
           case Left(e)  => throw e
