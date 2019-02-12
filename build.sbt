@@ -48,11 +48,13 @@ val io = (project in file("io"))
   .enablePlugins(ContrabandPlugin)
   .settings(
     commonSettings,
+    resolvers += "Sonatype OSS Snapshots" at "http://oss.sonatype.org/content/repositories/snapshots/",
     name := "IO",
     libraryDependencies ++= {
       Vector(scalaCompiler.value % Test, scalaCheck % Test, scalatest % Test)
     } ++ Vector(swovalFiles),
     libraryDependencies ++= Seq(jna, jnaPlatform),
+    version := "1.3.0-SNAPSHOT",
 
     Test / fork := true,
 
