@@ -44,10 +44,13 @@ private[sbt] trait FileEventMonitor[+T] extends AutoCloseable {
 }
 private[sbt] object FileEventMonitor {
 
+  private[io] trait DeadlineSource {
+    def now(): Deadline
+  }
   def apply[T <: SimpleFileAttributes](
       observable: Observable[FileEvent[T]],
       logger: WatchLogger = NullWatchLogger): FileEventMonitor[FileEvent[T]] =
-    new FileEventMonitorImpl[T](observable, logger)
+    new FileEventMonitorImpl[T](observable, logger, () => Deadline.now)
 
   /**
    * Create a [[FileEventMonitor]] that tracks recent events to prevent creating multiple events
@@ -77,12 +80,47 @@ private[sbt] object FileEventMonitor {
       period: FiniteDuration,
       logger: WatchLogger,
       quarantinePeriod: FiniteDuration,
-      retentionPeriod: FiniteDuration): FileEventMonitor[FileEvent[T]] = {
+      retentionPeriod: FiniteDuration): FileEventMonitor[FileEvent[T]] =
+    antiEntropy(observable, period, logger, quarantinePeriod, retentionPeriod, () => Deadline.now)
+
+  /**
+   * Create a [[FileEventMonitor]] that tracks recent events to prevent creating multiple events
+   * for the same path within the same window. This exists because there are many programs that
+   * may make a burst of modifications to a file in a short window. For example, many programs
+   * implement save by renaming a buffer file to the target file. This can create both a deletion
+   * and a creation event for the target file but we only want to create one file in this scenario.
+   * This scenario is so common that we specifically handle it with the quarantinePeriod parameter.
+   * When the monitor detects a file deletion, it does not actually produce an event for that
+   * path until the quarantinePeriod has elapsed or a creation or update event is detected.
+   *
+   * @param observable the [[Observable]] to monitor for events
+   * @param period the anti-entropy quarantine period
+   * @param logger a debug logger
+   * @param quarantinePeriod configures how long we wait before creating an event for a delete file.
+   * @param retentionPeriod configures how long in wall clock time to cache the anti-entropy
+   *                        deadline for a path. This is needed because sometimes there are long
+   *                        delays between polls and we do not want a stale event that occurred
+   *                        within an anti-entropy window for the event path to trigger. This
+   *                        is not a perfect solution, but a smarter solution would require
+   *                        introspection of the internal state of the pending events.
+   * @param deadlineSource controls the clock used for time stamping events. It should generally
+   *                       only be overridden in testing
+   * @tparam T the generic type for the [[Observable]] that we're monitoring
+   * @return the [[FileEventMonitor]] instance.
+   */
+  private[io] def antiEntropy[T <: SimpleFileAttributes](
+      observable: Observable[FileEvent[T]],
+      period: FiniteDuration,
+      logger: WatchLogger,
+      quarantinePeriod: FiniteDuration,
+      retentionPeriod: FiniteDuration,
+      deadlineSource: DeadlineSource): FileEventMonitor[FileEvent[T]] = {
     new AntiEntropyFileEventMonitor(period,
-                                    new FileEventMonitorImpl[T](observable, logger),
+                                    new FileEventMonitorImpl[T](observable, logger, deadlineSource),
                                     logger,
                                     quarantinePeriod,
-                                    retentionPeriod)
+                                    retentionPeriod,
+                                    deadlineSource)
   }
 
   /**
@@ -114,10 +152,17 @@ private[sbt] object FileEventMonitor {
       logger: WatchLogger,
       quarantinePeriod: FiniteDuration,
       retentionPeriod: FiniteDuration): FileEventMonitor[FileEvent[T]] = {
-    new AntiEntropyFileEventMonitor(period, monitor, logger, quarantinePeriod, retentionPeriod)
+    new AntiEntropyFileEventMonitor(period,
+                                    monitor,
+                                    logger,
+                                    quarantinePeriod,
+                                    retentionPeriod,
+                                    () => Deadline.now)
   }
 
-  private class FileEventMonitorImpl[T](observable: Observable[FileEvent[T]], logger: WatchLogger)
+  private class FileEventMonitorImpl[T](observable: Observable[FileEvent[T]],
+                                        logger: WatchLogger,
+                                        deadlineSource: DeadlineSource)
       extends FileEventMonitor[FileEvent[T]] {
     private case object Trigger
     private val events =
@@ -162,36 +207,36 @@ private[sbt] object FileEventMonitor {
       }
       ()
     }
-    private val handle = observable.addObserver(new Observer[FileEvent[T]] {
-      override def onNext(event: FileEvent[T]): Unit = add(event)
-    })
+    private val handle = observable.addObserver(add)
 
-    @tailrec
     final override def poll(duration: Duration,
                             filter: FileEvent[T] => Boolean): Seq[FileEvent[T]] = {
-      val start = Deadline.now
-      if (lock.synchronized(events.isEmpty) && duration > 0.seconds) {
-        duration match {
-          case d: FiniteDuration => queue.poll(d.toNanos, TimeUnit.NANOSECONDS)
-          case _                 => queue.take()
+      val limit = duration match {
+        case d: FiniteDuration => deadlineSource.now() + d
+        case _                 => deadlineSource.now() + 1.day
+      }
+      @tailrec def impl(): Seq[FileEvent[T]] = {
+        if (lock.synchronized(events.isEmpty) && duration > 0.seconds) {
+          duration match {
+            case d: FiniteDuration => queue.poll(d.toNanos, TimeUnit.NANOSECONDS)
+            case _                 => queue.take()
+          }
+        }
+        val res = lock.synchronized {
+          queue.poll(0, TimeUnit.MILLISECONDS)
+          val r = events.values.toVector.filter(filter)
+          events.clear()
+          r
+        }
+        res match {
+          case e if e.isEmpty =>
+            val now = deadlineSource.now()
+            if (now < limit) impl() else Nil
+          case e =>
+            e
         }
       }
-      val res = lock.synchronized {
-        queue.poll(0, TimeUnit.MILLISECONDS)
-        val r = events.values.toVector.filter(filter)
-        events.clear()
-        r
-      }
-      res match {
-        case e if e.isEmpty =>
-          val now = Deadline.now
-          duration match {
-            case d: FiniteDuration => if (now < start + d) poll((start + d) - now, filter) else Nil
-            case _                 => poll(duration, filter)
-          }
-        case e =>
-          e
-      }
+      impl()
     }
 
     override def close(): Unit = {
@@ -205,7 +250,8 @@ private[sbt] object FileEventMonitor {
       fileEventMonitor: FileEventMonitor[FileEvent[T]],
       logger: WatchLogger,
       quarantinePeriod: FiniteDuration,
-      retentionPeriod: FiniteDuration)
+      retentionPeriod: FiniteDuration,
+      deadlineSource: DeadlineSource)
       extends FileEventMonitor[FileEvent[T]] {
     private[this] val antiEntropyDeadlines = new ConcurrentHashMap[JPath, Deadline].asScala
     /*
@@ -222,7 +268,7 @@ private[sbt] object FileEventMonitor {
     @tailrec
     override final def poll(duration: Duration,
                             filter: FileEvent[T] => Boolean): Seq[FileEvent[T]] = {
-      val start = Deadline.now
+      val start = deadlineSource.now()
       /*
        * The impl is tail recursive to handle the case when we quarantine a deleted file or find
        * an event for a path that is an anti-entropy quarantine. In these cases, if there are other
@@ -276,8 +322,8 @@ private[sbt] object FileEventMonitor {
       antiEntropyDeadlines.retain((_, deadline) => !(deadline + retentionPeriod).isOverdue)
       transformed match {
         case s: Seq[FileEvent[T]] if s.nonEmpty => s
-        case s =>
-          val limit = duration - (Deadline.now - start)
+        case _ =>
+          val limit = duration - (deadlineSource.now() - start)
           if (limit > 0.millis) poll(limit, filter) else Nil
       }
     }
