@@ -60,7 +60,6 @@ val io = (project in file("io"))
     } ++ Vector(swovalFiles),
     libraryDependencies ++= Seq(jna, jnaPlatform),
 
-    Test / fork := true,
     Test / testForkedParallel := true,
 
     sourceManaged in (Compile, generateContrabands) := baseDirectory.value / "src" / "main" / "contraband-scala",
