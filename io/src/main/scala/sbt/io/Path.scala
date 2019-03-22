@@ -317,7 +317,7 @@ object Path extends Mapper {
       val fileTreeView = FileTreeView.DEFAULT
       (file, filter) =>
         fileTreeView
-          .list(Glob(file, 0, AllPassFilter), AllPass)
+          .list(Glob(file, (1, 1), AllPassFilter), AllPass)
           .flatMap {
             case (path: NioPath, attrs: SimpleFileAttributes) =>
               if (filter.accept(new AttributedFile(path, attrs))) Some(path.toFile) else None
@@ -417,9 +417,9 @@ object PathFinder {
   }
   private[io] final class GlobPathFinder(val glob: Glob) extends PathFinder {
     override def get(): Seq[File] = {
-      if (glob.depth == -1) {
+      if (glob.range._1 == 0 && glob.range._2 == 0) {
         glob.base.toFile :: Nil
-      } else if (glob.depth > 0) {
+      } else if (glob.range._1 == Int.MaxValue) {
         val files = new java.util.LinkedHashSet[File].asScala
         Path.defaultDescendantHandler(glob.base.toFile, glob.toFileFilter, files)
         files.toIndexedSeq
