@@ -12,7 +12,7 @@ package sbt.internal.io
 
 import java.nio.file.{ Path => NioPath }
 
-import sbt.io.{ Glob, WatchService }
+import sbt.io.{ FileAttributes, Glob, WatchService }
 
 import scala.util.Try
 
@@ -45,7 +45,7 @@ private[sbt] object FileTreeView {
     override def apply(any: Any): Boolean = true
     override def toString: String = "AllPass"
   }
-  private[sbt] val DEFAULT: NioFileTreeView[SimpleFileAttributes] = DefaultFileTreeView
+  private[sbt] val DEFAULT: NioFileTreeView[FileAttributes] = DefaultFileTreeView
   private class MappedFileTreeView[+T, +R](view: FileTreeView[T],
                                            converter: T => R,
                                            closeUnderlying: Boolean)
@@ -112,8 +112,8 @@ private[sbt] object FileTreeRepository {
    * @tparam T the generic type of the data value associated with each file
    * @return a file repository.
    */
-  private[sbt] def default[T: Manifest](converter: (NioPath, SimpleFileAttributes) => Try[T])
-    : FileTreeRepository[(SimpleFileAttributes, Try[T])] =
+  private[sbt] def default[T: Manifest](converter: (NioPath, FileAttributes) => Try[T])
+    : FileTreeRepository[(FileAttributes, Try[T])] =
     new FileTreeRepositoryImpl[T](converter)
 
   /**
@@ -121,12 +121,12 @@ private[sbt] object FileTreeRepository {
    * monitored directories.
    *
    * @param converter function to generate a cache data value from a
-   *                  `(Path, SimpleFileAttributes)` pair
+   *                  `(Path, FileAttributes)` pair
    * @tparam T the generic type of the
    * @return a file repository.
    */
-  private[sbt] def legacy[T](converter: (NioPath, SimpleFileAttributes) => Try[T])
-    : FileTreeRepository[(SimpleFileAttributes, Try[T])] =
+  private[sbt] def legacy[T](converter: (NioPath, FileAttributes) => Try[T])
+    : FileTreeRepository[(FileAttributes, Try[T])] =
     new LegacyFileTreeRepository[T](converter, new WatchLogger {
       override def debug(msg: => Any): Unit = {}
     }, WatchService.default)
@@ -136,16 +136,16 @@ private[sbt] object FileTreeRepository {
    * the file system tree for the monitored directories.
    *
    * @param converter function to generate a cache data value from a
-   *                  `(Path, SimpleFileAttributes)` pair
+   *                  `(Path, FileAttributes)` pair
    * @param logger used to log file events
    * @param watchService the [[WatchService]] to monitor for file system events
    * @tparam T the generic type of the custom file attributes
    * @return a file repository.
    */
   private[sbt] def legacy[T](
-      converter: (NioPath, SimpleFileAttributes) => Try[T],
+      converter: (NioPath, FileAttributes) => Try[T],
       logger: WatchLogger,
-      watchService: WatchService): FileTreeRepository[(SimpleFileAttributes, Try[T])] =
+      watchService: WatchService): FileTreeRepository[(FileAttributes, Try[T])] =
     new LegacyFileTreeRepository[T](converter, logger, watchService)
 
   /**
@@ -153,12 +153,12 @@ private[sbt] object FileTreeRepository {
    * of the paths under monitoring, but others will need to be polled.
    *
    * @param converter function to generate a cache data value from a
-   *                  `(Path, SimpleFileAttributes)` pair
+   *                  `(Path, FileAttributes)` pair
    * @param pollingGlobs do not cache any path contained in these [[Glob]]s.
    * @tparam T the generic type of the custom file attributes
    * @return a file repository.
    */
-  private[sbt] def hybrid[T](converter: (NioPath, SimpleFileAttributes) => Try[T],
+  private[sbt] def hybrid[T](converter: (NioPath, FileAttributes) => Try[T],
                              pollingGlobs: Glob*): HybridPollingFileTreeRepository[T] =
     HybridPollingFileTreeRepository(converter, pollingGlobs: _*)
 }

@@ -16,7 +16,7 @@ class HybridEventMonitorSpec extends FlatSpec with Matchers {
     val dir = baseDir.toPath.toRealPath()
     val pollingDir = Files.createDirectory(dir.resolve("polling"))
     val monitoredDir = Files.createDirectory(dir.resolve("monitored"))
-    val converter = (_: Path, _: SimpleFileAttributes) => Success(())
+    val converter = (_: Path, _: FileAttributes) => Success(())
     val repo = FileTreeRepository.hybrid(converter, pollingDir.toFile ** AllPassFilter)
     val globs = Seq(pollingDir.toFile ** AllPassFilter, monitoredDir.toFile ** AllPassFilter)
     globs.foreach(repo.register(_: Glob))

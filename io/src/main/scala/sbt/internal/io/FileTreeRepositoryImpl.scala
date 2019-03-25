@@ -32,42 +32,39 @@ import scala.util.Try
  * @param converter the function to convert paths to
  * @tparam T the type of the values.
  */
-private[sbt] class FileTreeRepositoryImpl[T](converter: (NioPath, SimpleFileAttributes) => Try[T])
-    extends FileTreeRepository[(SimpleFileAttributes, Try[T])] {
+private[sbt] class FileTreeRepositoryImpl[T](converter: (NioPath, FileAttributes) => Try[T])
+    extends FileTreeRepository[(FileAttributes, Try[T])] {
   private[this] val closed = new AtomicBoolean(false)
-  private[this] val underlying = FileTreeRepositories.get[(SimpleFileAttributes, Try[T])](
+  private[this] val underlying = FileTreeRepositories.get[(FileAttributes, Try[T])](
     (typedPath: STypedPath) => {
       val path = typedPath.getPath
-      val simpleFileAttributes = SimpleFileAttributes.get(typedPath.exists,
-                                                          typedPath.isDirectory,
-                                                          typedPath.isDirectory,
-                                                          typedPath.isSymbolicLink)
+      val simpleFileAttributes = FileAttributes.get(typedPath.exists,
+                                                    typedPath.isDirectory,
+                                                    typedPath.isDirectory,
+                                                    typedPath.isSymbolicLink)
       simpleFileAttributes -> converter(path, simpleFileAttributes)
     },
     true
   )
-  private[this] val observers = new Observers[FileEvent[(SimpleFileAttributes, Try[T])]]
+  private[this] val observers = new Observers[FileEvent[(FileAttributes, Try[T])]]
 
-  underlying.addCacheObserver(new CacheObserver[(SimpleFileAttributes, Try[T])] {
-    override def onCreate(
-        newEntry: FileTreeDataViews.Entry[(SimpleFileAttributes, Try[T])]): Unit = {
+  underlying.addCacheObserver(new CacheObserver[(FileAttributes, Try[T])] {
+    override def onCreate(newEntry: FileTreeDataViews.Entry[(FileAttributes, Try[T])]): Unit = {
       val path = newEntry.getTypedPath.getPath
       newEntry.getValue.asScala.right.foreach { v =>
         observers.onNext(Creation(path, v))
       }
       ()
     }
-    override def onDelete(
-        oldEntry: FileTreeDataViews.Entry[(SimpleFileAttributes, Try[T])]): Unit = {
+    override def onDelete(oldEntry: FileTreeDataViews.Entry[(FileAttributes, Try[T])]): Unit = {
       val path = oldEntry.getTypedPath.getPath
       oldEntry.getValue.asScala.right.foreach { v =>
         observers.onNext(Deletion(path, v))
       }
       ()
     }
-    override def onUpdate(
-        oldEntry: FileTreeDataViews.Entry[(SimpleFileAttributes, Try[T])],
-        newEntry: FileTreeDataViews.Entry[(SimpleFileAttributes, Try[T])]): Unit = {
+    override def onUpdate(oldEntry: FileTreeDataViews.Entry[(FileAttributes, Try[T])],
+                          newEntry: FileTreeDataViews.Entry[(FileAttributes, Try[T])]): Unit = {
       val path = newEntry.getTypedPath.getPath
       val oldEither = oldEntry.getValue.asScala
       val newEither = newEntry.getValue.asScala
@@ -85,16 +82,16 @@ private[sbt] class FileTreeRepositoryImpl[T](converter: (NioPath, SimpleFileAttr
       }
     }
     override def onError(exception: IOException): Unit = {}
-  }: CacheObserver[(SimpleFileAttributes, Try[T])])
+  }: CacheObserver[(FileAttributes, Try[T])])
   override def addObserver(
-      observer: Observer[FileEvent[(SimpleFileAttributes, Try[T])]]): AutoCloseable = {
+      observer: Observer[FileEvent[(FileAttributes, Try[T])]]): AutoCloseable = {
     throwIfClosed("addObserver")
     observers.addObserver(observer)
   }
-  override def list(glob: Glob, filter: ((NioPath, (SimpleFileAttributes, Try[T]))) => Boolean)
-    : Seq[(NioPath, (SimpleFileAttributes, Try[T]))] = {
+  override def list(glob: Glob, filter: ((NioPath, (FileAttributes, Try[T]))) => Boolean)
+    : Seq[(NioPath, (FileAttributes, Try[T]))] = {
     throwIfClosed("list")
-    val res = new VectorBuilder[(NioPath, (SimpleFileAttributes, Try[T]))]
+    val res = new VectorBuilder[(NioPath, (FileAttributes, Try[T]))]
     underlying
       .listEntries(glob.base, glob.range.toSwovalDepth, Filters.AllPass)
       .iterator
@@ -103,7 +100,7 @@ private[sbt] class FileTreeRepositoryImpl[T](converter: (NioPath, SimpleFileAttr
         val tp = e.getTypedPath
         val path = tp.getPath
         e.getValue.asScala match {
-          case Right(t: (SimpleFileAttributes, Try[T]) @unchecked) =>
+          case Right(t: (FileAttributes, Try[T]) @unchecked) =>
             val pair = path -> t
             if (filter(pair)) res += pair
           case _ =>
@@ -112,7 +109,7 @@ private[sbt] class FileTreeRepositoryImpl[T](converter: (NioPath, SimpleFileAttr
     res.result
   }
   override def register(
-      glob: Glob): Either[IOException, Observable[FileEvent[(SimpleFileAttributes, Try[T])]]] = {
+      glob: Glob): Either[IOException, Observable[FileEvent[(FileAttributes, Try[T])]]] = {
     throwIfClosed("register")
     underlying.register(glob.base, glob.range.toSwovalDepth).asScala match {
       case Right(_) => new RegisterableObservable(observers).register(glob)

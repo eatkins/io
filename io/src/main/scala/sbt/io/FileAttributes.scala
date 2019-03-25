@@ -1,102 +1,57 @@
+/*
+ * sbt IO
+ *
+ * Copyright 2011 - 2019, Lightbend, Inc.
+ * Copyright 2008 - 2010, Mark Harrah
+ *
+ * Licensed under Apache License 2.0
+ * (http://www.apache.org/licenses/LICENSE-2.0).
+ */
+
 package sbt.io
-import java.io.IOException
+
 import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{ Files, LinkOption, NoSuchFileException, Path => NioPath }
+import java.nio.file.{ Files, NoSuchFileException, Path => NioPath }
+
+import scala.util.Try
 
 /**
- * Represents a minimal set of attributes a file. In contrast to
- * `java.nio.file.attribute.BasicFileAttributes`, it is possible to compute the values provided
- * by this trait without stating the file. If all of the methods return false, the user may infer
- * that the file to which these attributes corresponds does not exist. An instance of this class
- * may not represent that current state of the file if the underlying file has been modified since
- * the instance was first created.
+ * Represents a subset of BasicFileAttributes that can sometimes be evaluated without running
+ * stat on the file as part of listing a directory.
  */
-sealed trait FileAttributes {
-
-  /**
-   * Returns true if the underlying file is a regular file.
-   * @return true if the underlying file is a regular file.
-   */
-  def isRegularFile: Boolean
-
-  /**
-   * Returns true if the underlying file is a directory.
-   * @return true if the underlying file is a directory.
-   */
+private[sbt] trait FileAttributes {
+  def exists: Boolean
   def isDirectory: Boolean
-
-  /**
-   * Returns true if the underlying file is a symbolic link.
-   * @return true if the underlying file is a symbolic link.
-   */
+  def isRegularFile: Boolean
   def isSymbolicLink: Boolean
-
-  /**
-   * Returns true if the underlying file is not a regular file, directory or symbolic link. The
-   * type of this file is thus platform dependent. For example, on linux, it could be a named
-   * pipe.
-   * @return true if the underlying file is not a regular file, directory or symbolic link.
-   */
-  def isOther: Boolean
 }
-
-object FileAttributes {
-  case object NonExistent extends FileAttributes {
-    override def isRegularFile: Boolean = false
-    override def isDirectory: Boolean = false
-    override def isSymbolicLink: Boolean = false
-    override def isOther: Boolean = false
-  }
-  private final class FileAttributesImpl(override val isDirectory: Boolean,
-                                         override val isOther: Boolean,
-                                         override val isRegularFile: Boolean,
-                                         override val isSymbolicLink: Boolean)
+private[sbt] object FileAttributes {
+  def get(path: NioPath): Try[FileAttributes] =
+    Try {
+      val attrs = Files.readAttributes(path, classOf[BasicFileAttributes])
+      new Impl(true, attrs.isDirectory, attrs.isRegularFile, attrs.isSymbolicLink)
+    }.recover {
+      case _: NoSuchFileException => new Impl(false, false, false, false)
+    }
+  private[sbt] def get(exists: Boolean,
+                       isDirectory: Boolean,
+                       isRegularFile: Boolean,
+                       isSymbolicLink: Boolean): FileAttributes =
+    new Impl(exists, isDirectory, isRegularFile, isSymbolicLink)
+  private class Impl(override val exists: Boolean,
+                     override val isDirectory: Boolean,
+                     override val isRegularFile: Boolean,
+                     override val isSymbolicLink: Boolean)
       extends FileAttributes {
-    override def hashCode: Int =
-      (((isRegularFile.hashCode * 31) ^ isDirectory.hashCode) * 31) ^ isSymbolicLink.hashCode
     override def equals(o: Any): Boolean = o match {
-      case that: FileAttributesImpl =>
-        this.isDirectory == that.isDirectory &&
-          this.isOther == that.isOther &&
-          this.isRegularFile == that.isRegularFile &&
-          this.isSymbolicLink == that.isSymbolicLink
+      case that: FileAttributes =>
+        (this.isDirectory == that.isDirectory) && (this.isRegularFile == that.isRegularFile) && (this.isSymbolicLink == that.isSymbolicLink)
       case _ => false
     }
+    override def hashCode: Int =
+      ((isDirectory.hashCode * 31) ^ (isRegularFile.hashCode * 31)) ^ (isSymbolicLink.hashCode * 31)
     override def toString: String =
-      s"FileAttributes(isDirectory = $isDirectory, isOther = $isOther," +
-        s"isRegularFile = $isRegularFile, isSymbolicLink = $isSymbolicLink)"
+      s"FileAttributes(isDirectory = $isDirectory, isRegularFile = $isRegularFile" +
+        s", isSymbolicLink = $isSymbolicLink, exists = $exists)"
   }
-  def apply(path: NioPath): Either[IOException, FileAttributes] = apply(path, followLinks = true)
-  def apply(path: NioPath, followLinks: Boolean): Either[IOException, FileAttributes] =
-    try {
-      val attrs =
-        if (followLinks) Files.readAttributes(path, classOf[BasicFileAttributes])
-        else Files.readAttributes(path, classOf[BasicFileAttributes], LinkOption.NOFOLLOW_LINKS)
-      if (attrs.isSymbolicLink && followLinks) {
-        try {
-          val linkAttrs = Files.readAttributes(path, classOf[BasicFileAttributes])
-          Right(
-            apply(linkAttrs.isDirectory,
-                  linkAttrs.isOther,
-                  linkAttrs.isRegularFile,
-                  isSymbolicLink = true))
-        } catch {
-          case _: NoSuchFieldException =>
-            Right(
-              apply(isDirectory = false,
-                    isOther = false,
-                    isRegularFile = false,
-                    isSymbolicLink = true))
-        }
-      } else
-        Right(apply(attrs.isDirectory, attrs.isOther, attrs.isRegularFile, isSymbolicLink = false))
-    } catch {
-      case _: NoSuchFileException => Right(NonExistent)
-      case e: IOException         => Left(e)
-    }
-  def apply(isDirectory: Boolean,
-            isOther: Boolean,
-            isRegularFile: Boolean,
-            isSymbolicLink: Boolean): FileAttributes =
-    new FileAttributesImpl(isDirectory, isOther, isRegularFile, isSymbolicLink)
 }

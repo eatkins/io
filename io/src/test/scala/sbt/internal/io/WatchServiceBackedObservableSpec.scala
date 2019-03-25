@@ -25,7 +25,7 @@ class WatchServiceBackedObservableSpec extends FlatSpec {
       new WatchServiceBackedObservable(
         watchState,
         100.millis,
-        (_: Path, _: SimpleFileAttributes) => Success(()),
+        (_: Path, _: FileAttributes) => Success(()),
         closeService = true,
         (_: Any) => {}
       )

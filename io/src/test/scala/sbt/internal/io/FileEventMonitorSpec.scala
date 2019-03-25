@@ -5,12 +5,13 @@ import java.util.concurrent.atomic.AtomicReference
 
 import org.scalatest.{ FlatSpec, Matchers }
 import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
+import sbt.io.FileAttributes
 
 import scala.concurrent.duration.{ Deadline => _, _ }
 
 class FileEventMonitorSpec extends FlatSpec with Matchers {
   import FileEventMonitorSpec._
-  private[io] def antiEntropyMonitor[T <: SimpleFileAttributes](
+  private[io] def antiEntropyMonitor[T <: FileAttributes](
       observable: Observable[FileEvent[T]],
       period: FiniteDuration,
       logger: WatchLogger)(implicit timeSource: TimeSource): FileEventMonitor[FileEvent[T]] =
@@ -19,8 +20,8 @@ class FileEventMonitorSpec extends FlatSpec with Matchers {
     def apply(exists: Boolean = true,
               isDirectory: Boolean = false,
               isRegularFile: Boolean = false,
-              isSymbolicLink: Boolean = false): SimpleFileAttributes =
-      SimpleFileAttributes.get(exists, isDirectory, isRegularFile, isSymbolicLink)
+              isSymbolicLink: Boolean = false): FileAttributes =
+      FileAttributes.get(exists, isDirectory, isRegularFile, isSymbolicLink)
   }
   class DeterminsticTimeSource extends TimeSource with AutoCloseable {
     private val currentTime = new AtomicReference[FiniteDuration](System.currentTimeMillis.millis)
@@ -159,5 +160,5 @@ class FileEventMonitorSpec extends FlatSpec with Matchers {
   }
 }
 object FileEventMonitorSpec extends Matchers {
-  private type Event = FileEvent[SimpleFileAttributes]
+  private type Event = FileEvent[FileAttributes]
 }

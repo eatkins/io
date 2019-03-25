@@ -35,7 +35,7 @@ private[sbt] class PollingWatchService(delay: FiniteDuration, timeSource: TimeSo
   private[this] implicit def ts: TimeSource = timeSource
   private[this] val closed = new AtomicBoolean(false)
   private[this] val registered = new ConcurrentHashMap[Path, PollingWatchKey].asScala
-  private[this] val lastModifiedConverter: (Path, SimpleFileAttributes) => Try[Long] = (p, _) =>
+  private[this] val lastModifiedConverter: (Path, FileAttributes) => Try[Long] = (p, _) =>
     Success(IO.getModifiedTimeOrZero(p.toFile))
   private[this] val pollQueue: util.Queue[PollingWatchKey] =
     new LinkedBlockingDeque[PollingWatchKey]
@@ -115,7 +115,7 @@ private[sbt] class PollingWatchService(delay: FiniteDuration, timeSource: TimeSo
                                 eventKinds: WatchEvent.Kind[Path]*)
       extends WatchKey {
     private[this] val events =
-      new ArrayBlockingQueue[FileEvent[(SimpleFileAttributes, Try[Long])]](256)
+      new ArrayBlockingQueue[FileEvent[(FileAttributes, Try[Long])]](256)
     private[this] val hasOverflow = new AtomicBoolean(false)
     private[this] lazy val acceptCreate = eventKinds.contains(ENTRY_CREATE)
     private[this] lazy val acceptDelete = eventKinds.contains(ENTRY_DELETE)
@@ -147,7 +147,7 @@ private[sbt] class PollingWatchService(delay: FiniteDuration, timeSource: TimeSo
       events.synchronized {
         val overflow = hasOverflow.getAndSet(false)
         val size = events.size + (if (overflow) 1 else 0)
-        val rawEvents = new util.ArrayList[FileEvent[(SimpleFileAttributes, Try[Long])]](size)
+        val rawEvents = new util.ArrayList[FileEvent[(FileAttributes, Try[Long])]](size)
         events.drainTo(rawEvents)
         val res = new util.ArrayList[WatchEvent[Path]](size)
         res.addAll(rawEvents.asScala.map {
@@ -160,8 +160,8 @@ private[sbt] class PollingWatchService(delay: FiniteDuration, timeSource: TimeSo
       }
     }
     private[PollingWatchService] def maybeAddEvent(
-        event: FileEvent[(SimpleFileAttributes, Try[Long])]): Option[PollingWatchKey] = {
-      def offer(event: FileEvent[(SimpleFileAttributes, Try[Long])]): Option[PollingWatchKey] = {
+        event: FileEvent[(FileAttributes, Try[Long])]): Option[PollingWatchKey] = {
+      def offer(event: FileEvent[(FileAttributes, Try[Long])]): Option[PollingWatchKey] = {
         if (!events.synchronized(events.offer(event))) hasOverflow.set(true)
         Some(this)
       }

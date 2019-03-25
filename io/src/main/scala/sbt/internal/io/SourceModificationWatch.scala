@@ -39,15 +39,15 @@ private[sbt] object SourceModificationWatch {
     if (state.count == 0) {
       (true, state.withCount(1))
     } else {
-      val observable: Observable[FileEvent[(SimpleFileAttributes, Try[Unit])]] =
+      val observable: Observable[FileEvent[(FileAttributes, Try[Unit])]] =
         new WatchServiceBackedObservable[Unit](
           state.toNewWatchState,
           delay,
-          (_: Path, _: SimpleFileAttributes) => Success(()),
+          (_: Path, _: FileAttributes) => Success(()),
           closeService = false,
           NullWatchLogger
         )
-      val monitor: FileEventMonitor[FileEvent[(SimpleFileAttributes, Try[Unit])]] =
+      val monitor: FileEventMonitor[FileEvent[(FileAttributes, Try[Unit])]] =
         FileEventMonitor.antiEntropy(observable,
                                      200.milliseconds,
                                      NullWatchLogger,

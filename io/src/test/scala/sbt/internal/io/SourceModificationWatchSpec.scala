@@ -478,7 +478,7 @@ private[sbt] trait EventMonitorSpec { self: FlatSpec with Matchers =>
 }
 
 object EventMonitorSpec {
-  type Event = FileEvent[(SimpleFileAttributes, Try[Unit])]
+  type Event = FileEvent[(FileAttributes, Try[Unit])]
   val AllPass: Any => Boolean = ((_: Any) => true).label("AllPass")
   val NonEmpty: Seq[FileEvent[_]] => Boolean = ((_: Seq[FileEvent[_]]).nonEmpty).label("NonEmpty")
   private implicit class LabeledFunction[T, R](val f: T => R) extends AnyVal {
@@ -579,10 +579,10 @@ object EventMonitorSpec {
 }
 
 private[sbt] trait RepoEventMonitorSpec extends FlatSpec with Matchers with EventMonitorSpec {
-  val converter: (Path, SimpleFileAttributes) => Try[Unit] =
-    (_: Path, _: SimpleFileAttributes) => Success(())
-  private[sbt] def factory(f: (Path, SimpleFileAttributes) => Try[Unit])
-    : FileTreeRepository[(SimpleFileAttributes, Try[Unit])]
+  val converter: (Path, FileAttributes) => Try[Unit] =
+    (_: Path, _: FileAttributes) => Success(())
+  private[sbt] def factory(
+      f: (Path, FileAttributes) => Try[Unit]): FileTreeRepository[(FileAttributes, Try[Unit])]
   override def newObservable(globs: Seq[Glob], logger: Logger): Observable[Event] = {
     val repository = factory(converter)
     new Observable[Event] {
@@ -599,14 +599,16 @@ private[sbt] trait RepoEventMonitorSpec extends FlatSpec with Matchers with Even
 }
 class FileTreeRepositoryEventMonitorSpec extends RepoEventMonitorSpec {
   override def pollDelay: FiniteDuration = 100.millis
-  override private[sbt] def factory(f: (Path, SimpleFileAttributes) => Try[Unit])
-    : FileTreeRepository[(SimpleFileAttributes, Try[Unit])] = FileTreeRepository.default[Unit](f)
+  override private[sbt] def factory(
+      f: (Path, FileAttributes) => Try[Unit]): FileTreeRepository[(FileAttributes, Try[Unit])] =
+    FileTreeRepository.default[Unit](f)
 }
 
 class LegacyFileTreeRepositoryEventMonitorSpec extends RepoEventMonitorSpec {
   override def pollDelay: FiniteDuration = 100.millis
-  override private[sbt] def factory(f: (Path, SimpleFileAttributes) => Try[Unit])
-    : FileTreeRepository[(SimpleFileAttributes, Try[Unit])] = FileTreeRepository.legacy[Unit](f)
+  override private[sbt] def factory(
+      f: (Path, FileAttributes) => Try[Unit]): FileTreeRepository[(FileAttributes, Try[Unit])] =
+    FileTreeRepository.legacy[Unit](f)
 }
 
 private[sbt] abstract class SourceModificationWatchSpec(
@@ -640,7 +642,7 @@ private[sbt] abstract class SourceModificationWatchSpec(
     val observable = new WatchServiceBackedObservable[Unit](
       watchState,
       5.millis,
-      converter = (_: Path, _: SimpleFileAttributes) => Success(()),
+      converter = (_: Path, _: FileAttributes) => Success(()),
       closeService = true,
       logger = logger)
     observable.register(globs)

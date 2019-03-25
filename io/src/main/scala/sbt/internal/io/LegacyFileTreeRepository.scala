@@ -25,16 +25,16 @@ import scala.util.Try
  * will always poll the file system and the monitoring will be handled by a
  * [[WatchServiceBackedObservable]].
  */
-private[sbt] class LegacyFileTreeRepository[T](converter: (Path, SimpleFileAttributes) => Try[T],
+private[sbt] class LegacyFileTreeRepository[T](converter: (Path, FileAttributes) => Try[T],
                                                logger: WatchLogger,
                                                watchService: WatchService)
-    extends FileTreeRepository[(SimpleFileAttributes, Try[T])] {
-  private[this] val view: NioFileTreeView[(SimpleFileAttributes, Try[T])] =
-    FileTreeView.DEFAULT.map((p: Path, a: SimpleFileAttributes) => a -> converter(p, a))
+    extends FileTreeRepository[(FileAttributes, Try[T])] {
+  private[this] val view: NioFileTreeView[(FileAttributes, Try[T])] =
+    FileTreeView.DEFAULT.map((p: Path, a: FileAttributes) => a -> converter(p, a))
   private[this] val globs = ConcurrentHashMap.newKeySet[Glob].asScala
   private[this] val fileCache = new FileCache(converter, globs)
-  private[this] val observable: Observable[FileEvent[(SimpleFileAttributes, Try[T])]]
-    with Registerable[FileEvent[(SimpleFileAttributes, Try[T])]] =
+  private[this] val observable: Observable[FileEvent[(FileAttributes, Try[T])]]
+    with Registerable[FileEvent[(FileAttributes, Try[T])]] =
     new WatchServiceBackedObservable[T](
       new NewWatchState(globs, watchService, new ConcurrentHashMap[Path, WatchKey].asScala),
       100.millis,
@@ -42,11 +42,11 @@ private[sbt] class LegacyFileTreeRepository[T](converter: (Path, SimpleFileAttri
       closeService = true,
       logger
     )
-  private[this] val observers = new Observers[FileEvent[(SimpleFileAttributes, Try[T])]]
+  private[this] val observers = new Observers[FileEvent[(FileAttributes, Try[T])]]
   private[this] val handle =
-    observable.addObserver(new Observer[FileEvent[(SimpleFileAttributes, Try[T])]] {
-      override def onNext(event: FileEvent[(SimpleFileAttributes, Try[T])]): Unit = {
-        val events: Seq[FileEvent[(SimpleFileAttributes, Try[T])]] =
+    observable.addObserver(new Observer[FileEvent[(FileAttributes, Try[T])]] {
+      override def onNext(event: FileEvent[(FileAttributes, Try[T])]): Unit = {
+        val events: Seq[FileEvent[(FileAttributes, Try[T])]] =
           fileCache.update(event.path, event.attributes._1)
         events.foreach(observers.onNext)
       }
@@ -56,13 +56,13 @@ private[sbt] class LegacyFileTreeRepository[T](converter: (Path, SimpleFileAttri
     observable.close()
   }
   override def register(
-      glob: Glob): Either[IOException, Observable[FileEvent[(SimpleFileAttributes, Try[T])]]] = {
+      glob: Glob): Either[IOException, Observable[FileEvent[(FileAttributes, Try[T])]]] = {
     fileCache.register(glob)
     observable.register(glob).right.foreach(_.close())
     new RegisterableObservable(observers).register(glob)
   }
-  override def list(glob: Glob, filter: ((Path, (SimpleFileAttributes, Try[T]))) => Boolean)
-    : Seq[(Path, (SimpleFileAttributes, Try[T]))] =
+  override def list(glob: Glob, filter: ((Path, (FileAttributes, Try[T]))) => Boolean)
+    : Seq[(Path, (FileAttributes, Try[T]))] =
     view.list(glob, filter)
 
   /**
@@ -71,7 +71,6 @@ private[sbt] class LegacyFileTreeRepository[T](converter: (Path, SimpleFileAttri
    * @param observer the callbacks to invoke
    * @return a handle to the callback.
    */
-  override def addObserver(
-      observer: Observer[FileEvent[(SimpleFileAttributes, Try[T])]]): AutoCloseable =
+  override def addObserver(observer: Observer[FileEvent[(FileAttributes, Try[T])]]): AutoCloseable =
     observers.addObserver(observer)
 }

@@ -19,7 +19,7 @@ import sbt.io._
 import scala.collection.JavaConverters._
 import SwovalConverters._
 
-private[sbt] object DefaultFileTreeView extends NioFileTreeView[SimpleFileAttributes] {
+private[sbt] object DefaultFileTreeView extends NioFileTreeView[FileAttributes] {
   private[this] val fileTreeView =
     if ("nio" == sys.props.getOrElse("sbt.pathfinder", ""))
       FileTreeViews.getNio(true)
@@ -28,7 +28,7 @@ private[sbt] object DefaultFileTreeView extends NioFileTreeView[SimpleFileAttrib
 
   override def list(
       glob: Glob,
-      filter: ((NioPath, SimpleFileAttributes)) => Boolean): Seq[(NioPath, SimpleFileAttributes)] =
+      filter: ((NioPath, FileAttributes)) => Boolean): Seq[(NioPath, FileAttributes)] =
     Retry {
       try {
         fileTreeView
@@ -38,10 +38,10 @@ private[sbt] object DefaultFileTreeView extends NioFileTreeView[SimpleFileAttrib
           .asScala
           .flatMap { typedPath =>
             val path = typedPath.getPath
-            val attributes = SimpleFileAttributes.get(typedPath.exists,
-                                                      typedPath.isDirectory,
-                                                      typedPath.isFile,
-                                                      typedPath.isSymbolicLink)
+            val attributes = FileAttributes.get(typedPath.exists,
+                                                typedPath.isDirectory,
+                                                typedPath.isFile,
+                                                typedPath.isSymbolicLink)
             val pair = path -> attributes
             if (glob.filter(path) && filter(pair)) Some(pair) else None
           }

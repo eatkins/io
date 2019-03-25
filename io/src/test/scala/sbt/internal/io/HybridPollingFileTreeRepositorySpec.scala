@@ -12,19 +12,19 @@ import sbt.io.syntax._
 import scala.util.{ Success, Try }
 
 class HybridPollingFileTreeRepositorySpec extends FlatSpec with Matchers {
-  private val converter: (Path, SimpleFileAttributes) => Try[Unit] = (_, _) => Success(())
+  private val converter: (Path, FileAttributes) => Try[Unit] = (_, _) => Success(())
   it should "poll specified directories " in IO.withTemporaryDirectory { baseDir =>
     val dir = Files.createDirectory(baseDir.toPath.resolve("regular")).toRealPath()
     val pollingDir = Files.createDirectory(baseDir.toPath.resolve("polling")).toRealPath()
     val latch = new CountDownLatch(1)
-    val repo: FileTreeRepository[(SimpleFileAttributes, Try[Unit])] =
+    val repo: FileTreeRepository[(FileAttributes, Try[Unit])] =
       FileTreeRepository.hybrid(converter, pollingDir.toFile ** AllPassFilter)
     try {
       repo.register(dir ** AllPassFilter)
       repo.register(pollingDir ** AllPassFilter)
       val regularFile = dir.resolve("regular-file")
-      val observer: Observer[FileEvent[(SimpleFileAttributes, Try[Unit])]] =
-        (_: FileEvent[(SimpleFileAttributes, Try[Unit])]) match {
+      val observer: Observer[FileEvent[(FileAttributes, Try[Unit])]] =
+        (_: FileEvent[(FileAttributes, Try[Unit])]) match {
           case Creation(p, _) if p == regularFile => latch.countDown()
           case _                                  =>
         }
@@ -50,7 +50,7 @@ class HybridPollingFileTreeRepositorySpec extends FlatSpec with Matchers {
     val subdir = Files.createDirectory(dir.resolve("subdir"))
     val nested = Files.createDirectory(subdir.resolve("nested"))
     val file = Files.createFile(nested.resolve("file"))
-    val repo: FileTreeRepository[(SimpleFileAttributes, Try[Unit])] =
+    val repo: FileTreeRepository[(FileAttributes, Try[Unit])] =
       FileTreeRepository.hybrid(converter, subdir ** AllPassFilter)
     try {
       repo.register(dir ** AllPassFilter)

@@ -26,7 +26,7 @@ import java.nio.file.{
 import com.swoval.files.FileTreeViews
 import com.swoval.functional.Filter
 import sbt.internal.io.FileTreeView.AllPass
-import sbt.internal.io.{ FileTreeView, SimpleFileAttributes }
+import sbt.internal.io.FileTreeView
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -319,11 +319,11 @@ object Path extends Mapper {
         fileTreeView
           .list(Glob(file, (1, 1), AllPassFilter), AllPass)
           .flatMap {
-            case (path: NioPath, attrs: SimpleFileAttributes) =>
+            case (path: NioPath, attrs: FileAttributes) =>
               if (filter.accept(new AttributedFile(path, attrs))) Some(path.toFile) else None
           }
     }
-  private class AttributedFile(path: NioPath, attributes: SimpleFileAttributes)
+  private class AttributedFile(path: NioPath, attributes: FileAttributes)
       extends File(path.toString) {
     override def isDirectory: Boolean = attributes.isDirectory
     def isRegularFile: Boolean = attributes.isRegularFile
