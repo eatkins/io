@@ -32,7 +32,7 @@ private[sbt] class LegacyFileTreeRepository[T](converter: (Path, FileAttributes)
                                                watchService: WatchService)
     extends FileTreeRepository[(FileAttributes, Try[T])] {
   private[this] val view: NioFileTreeView[(FileAttributes, Try[T])] =
-    FileTreeView.DEFAULT.map((p: Path, a: FileAttributes) => a -> converter(p, a))
+    FileTreeView.DEFAULT_NIO.map((p: Path, a: FileAttributes) => a -> converter(p, a))
   private[this] val globs = ConcurrentHashMap.newKeySet[Glob].asScala
   private[this] val fileCache = new FileCache(converter, globs)
   private[this] val observable: Observable[FileEvent[(FileAttributes, Try[T])]]

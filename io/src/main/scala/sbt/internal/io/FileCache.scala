@@ -6,9 +6,9 @@ import java.util.Collections
 import java.util.concurrent.{ ConcurrentHashMap, ConcurrentSkipListMap }
 
 import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
-import sbt.internal.io.FileTreeView.AllPass
+import sbt.io.FileTreeView._
 import sbt.io.FileAttributes.NonExistent
-import sbt.io.{ AllPassFilter, FileAttributes, Glob }
+import sbt.io.{ AllPassFilter, FileAttributes, FileTreeView, Glob }
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -22,7 +22,7 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
   private[this] val files =
     Collections.synchronizedSortedMap(new ConcurrentSkipListMap[Path, (FileAttributes, Try[T])])
   private[this] val view: NioFileTreeView[(FileAttributes, Try[T])] =
-    FileTreeView.DEFAULT.map((p: Path, a: FileAttributes) => a -> converter(p, a))
+    FileTreeView.DEFAULT_NIO.map((p: Path, a: FileAttributes) => a -> converter(p, a))
   private[io] def update(
       path: Path,
       attributes: FileAttributes,

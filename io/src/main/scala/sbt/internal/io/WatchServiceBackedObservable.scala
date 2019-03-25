@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.{ AtomicBoolean, AtomicInteger }
 import java.util.concurrent.{ CountDownLatch, TimeUnit }
 
 import sbt.internal.io.FileEvent.{ Creation, Deletion }
-import sbt.internal.io.FileTreeView.AllPass
+import sbt.io.FileTreeView._
 import sbt.io._
 import sbt.io.syntax._
 
@@ -42,8 +42,8 @@ private[sbt] class WatchServiceBackedObservable[T](s: NewWatchState,
   private[this] val closed = new AtomicBoolean(false)
   private[this] val observers = new Observers[FileEvent[(FileAttributes, Try[T])]]
   private[this] val fileCache = new FileCache(converter)
-  private[this] val view: NioFileTreeView[(FileAttributes, Try[T])] =
-    FileTreeView.DEFAULT.map((p: Path, a: FileAttributes) => a -> converter(p, a))
+  private[this] val view: FileTreeView.Nio[(FileAttributes, Try[T])] =
+    FileTreeView.DEFAULT_NIO.map((p: Path, a: FileAttributes) => a -> converter(p, a))
   private[this] val thread: Thread = {
     val latch = new CountDownLatch(1)
     new Thread(s"watch-state-event-thread-${eventThreadId.incrementAndGet()}") {

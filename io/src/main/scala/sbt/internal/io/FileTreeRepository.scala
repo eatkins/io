@@ -12,75 +12,14 @@ package sbt.internal.io
 
 import java.nio.file.{ Path => NioPath }
 
-import sbt.io.{ FileAttributes, Glob, WatchService }
+import sbt.io.{ FileAttributes, FileTreeView, Glob, WatchService }
 
 import scala.util.Try
-
-/**
- * Provides a view into the file system that allows retrieval of the children of a particular path.
- * Specific implementations may or may not use a cache for retrieval.
- */
-private[sbt] trait FileTreeView[+T] extends AutoCloseable {
-
-  /**
-   * List the contents of the current directory.
-   *
-   * @param glob The glob to list
-   * @return a sequence of `(Path, T) tuples`
-   */
-  def list(glob: Glob, filter: T => Boolean): Seq[T]
-
-  // Many, if not most, FileTreeViews should not create new resources.
-  override def close(): Unit = {}
-}
 
 private[sbt] trait NioFileTreeView[+T] extends FileTreeView[(NioPath, T)] {
   def list(glob: Glob, filter: ((NioPath, T)) => Boolean): Seq[(NioPath, T)]
   final def list(glob: Glob, filter: (NioPath, T) => Boolean): Seq[(NioPath, T)] =
     list(glob, filter.tupled)
-}
-
-private[sbt] object FileTreeView {
-  object AllPass extends (Any => Boolean) {
-    override def apply(any: Any): Boolean = true
-    override def toString: String = "AllPass"
-  }
-  private[sbt] val DEFAULT: NioFileTreeView[FileAttributes] = DefaultFileTreeView
-  private class MappedFileTreeView[+T, +R](view: FileTreeView[T],
-                                           converter: T => R,
-                                           closeUnderlying: Boolean)
-      extends FileTreeView[R] {
-    override def list(glob: Glob, filter: R => Boolean): Seq[R] = {
-      view.list(glob, AllPass).flatMap { t =>
-        val r: R = converter(t)
-        if (filter(r)) r :: Nil else Nil
-      }
-    }
-    override def close(): Unit = if (closeUnderlying) view.close()
-  }
-  private[sbt] implicit class NioFileTreeViewOps[T](val view: NioFileTreeView[T]) {
-    def map[A >: T, B](f: (NioPath, A) => B): NioFileTreeView[B] = {
-      val mapped: FileTreeView[(NioPath, B)] = {
-        val converter: ((NioPath, A)) => (NioPath, B) = {
-          case (path: NioPath, attrs) => path -> f(path, attrs)
-        }
-        new MappedFileTreeView(view, converter, true)
-      }
-      new NioFileTreeView[B] {
-        override def list(glob: Glob, filter: ((NioPath, B)) => Boolean): Seq[(NioPath, B)] =
-          mapped.list(glob, filter)
-      }
-    }
-    def flatMap[B, A >: T](f: (NioPath, A) => Traversable[B]): NioFileTreeView[B] = {
-      val converter: ((NioPath, A)) => Traversable[(NioPath, B)] = {
-        case (path: NioPath, attrs) => f(path, attrs).map(path -> _)
-      }
-      new NioFileTreeView[B] {
-        override def list(glob: Glob, filter: ((NioPath, B)) => Boolean): Seq[(NioPath, B)] =
-          view.list(glob, AllPass).flatMap(converter(_).filter(filter))
-      }
-    }
-  }
 }
 
 // scaladoc is horrible and I couldn't figure out how to link the overloaded method listEntries
