@@ -12,7 +12,7 @@ package sbt.internal.io
 
 import java.nio.file.{ Path => NioPath }
 
-import sbt.io.{ FileAttributes, FileTreeView, Glob, WatchService }
+import sbt.io.{ FileAttributes, Glob, WatchService }
 
 import scala.util.Try
 

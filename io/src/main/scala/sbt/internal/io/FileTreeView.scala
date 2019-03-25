@@ -1,7 +1,8 @@
-package sbt.io
+package sbt.internal.io
 
 import java.nio.file.{ Path => NioPath }
-import sbt.internal.io.{ DefaultFileTreeView, NioFileTreeView }
+
+import sbt.io.{ FileAttributes, Glob }
 
 /**
  * Provides a view into the file system that allows retrieval of the children of a particular path.
@@ -21,7 +22,7 @@ trait FileTreeView[+T] extends AutoCloseable {
   // Many, if not most, FileTreeViews should not create new resources.
   override def close(): Unit = {}
 }
-object FileTreeView {
+private[sbt] object FileTreeView {
   private[sbt] type Nio[T] = FileTreeView[(NioPath, T)]
   private[sbt] type Io[T] = FileTreeView[(java.io.File, T)]
   private[sbt] object AllPass extends (Any => Boolean) {

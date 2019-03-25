@@ -3,7 +3,7 @@ package sbt.internal.io
 import java.nio.file.{ Files, Path }
 
 import org.scalatest.{ FlatSpec, Matchers }
-import sbt.io.FileTreeView.AllPass
+import sbt.internal.io.FileTreeView.AllPass
 import sbt.io._
 import sbt.io.syntax._
 

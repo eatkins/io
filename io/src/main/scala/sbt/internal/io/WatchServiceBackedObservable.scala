@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.{ AtomicBoolean, AtomicInteger }
 import java.util.concurrent.{ CountDownLatch, TimeUnit }
 
 import sbt.internal.io.FileEvent.{ Creation, Deletion }
-import sbt.io.FileTreeView._
+import sbt.internal.io.FileTreeView._
 import sbt.io._
 import sbt.io.syntax._
 

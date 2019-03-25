@@ -6,7 +6,7 @@ import java.util.concurrent.{ ConcurrentHashMap, CountDownLatch, TimeUnit }
 
 import org.scalatest.{ FlatSpec, Matchers }
 import sbt.internal.io.FileEvent.{ Creation, Deletion }
-import sbt.io.FileTreeView.AllPass
+import sbt.internal.io.FileTreeView.AllPass
 import sbt.io.syntax._
 import sbt.io.{ AllPassFilter, FileAttributes, Glob, IO }
 

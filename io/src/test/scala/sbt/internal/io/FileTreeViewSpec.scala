@@ -3,9 +3,9 @@ package sbt.internal.io
 import java.nio.file._
 
 import org.scalatest.FlatSpec
-import sbt.io.FileTreeView.AllPass
-import sbt.io.{ AllPassFilter, IO, FileTreeView }
+import sbt.internal.io.FileTreeView.AllPass
 import sbt.io.syntax._
+import sbt.io.{ AllPassFilter, IO }
 
 class FileTreeViewSpec extends FlatSpec {
   val view = FileTreeView.DEFAULT_IO
