@@ -13,10 +13,16 @@ package sbt.internal.io
 import java.nio.file.{ Path => NioPath }
 
 private[sbt] sealed trait FileEvent[+T] {
+  import FileEvent._
   def path: NioPath
   def attributes: T
   def exists: Boolean
   def occurredAt: Deadline
+  private[sbt] def map[U](f: T => U): FileEvent[U] = this match {
+    case c: Creation[T] => Creation(path, f(c.attributes), c.occurredAt)
+    case d: Deletion[T] => Deletion(path, f(d.attributes), d.occurredAt)
+    case u: Update[T]   => Update(path, f(u.previousAttributes), f(u.attributes), u.occurredAt)
+  }
 }
 private[sbt] object FileEvent {
   def unapply[T](event: FileEvent[T]): Option[(NioPath, T)] =

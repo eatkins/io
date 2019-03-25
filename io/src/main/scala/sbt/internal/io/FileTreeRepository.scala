@@ -10,8 +10,11 @@
 
 package sbt.internal.io
 
+import java.io.IOException
 import java.nio.file.{ Path => NioPath }
 
+import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
+import sbt.internal.io.FileTreeView.AllPass
 import sbt.io.{ FileAttributes, Glob, WatchService }
 
 import scala.util.Try
@@ -41,6 +44,33 @@ private[sbt] trait FileTreeRepository[+T]
     with AutoCloseable
 
 private[sbt] object FileTreeRepository {
+  private[sbt] implicit class Ops[T](val repo: FileTreeRepository[T]) extends AnyVal {
+    def map[U](f: T => U, closeUnderlying: Boolean): FileTreeRepository[U] =
+      new FileTreeRepository[U] {
+        private val observers = new Observers[FileEvent[U]]
+        private val handle = repo.addObserver((_: FileEvent[T]) match {
+          case Creation(path, attributes) => observers.onNext(Creation(path, f(attributes)))
+          case Deletion(path, attributes) => observers.onNext(Deletion(path, f(attributes)))
+          case Update(path, previousAttributes, attributes) =>
+            observers.onNext(Update(path, f(previousAttributes), f(attributes)))
+        })
+        override def register(glob: Glob): Either[IOException, Observable[FileEvent[U]]] =
+          repo
+            .register(glob)
+            .map((o: Observable[FileEvent[T]]) => Observable.map(o, (_: FileEvent[T]).map(f)))
+        override def addObserver(observer: Observer[FileEvent[U]]): AutoCloseable =
+          observers.addObserver(observer)
+        override def list(glob: Glob, filter: ((NioPath, U)) => Boolean): Seq[(NioPath, U)] =
+          repo.list(glob, AllPass).flatMap {
+            case (p, t) =>
+              Some(p -> f(t)).filter(filter)
+          }
+        override def close(): Unit = {
+          handle.close()
+          if (closeUnderlying) repo.close()
+        }
+      }
+  }
 
   /**
    * Create a [[FileTreeRepository]]. The generated repository will cache the file system tree for the

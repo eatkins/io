@@ -60,16 +60,12 @@ private[sbt] trait ObservablePaths[+T] extends Observable[(NioPath, T)]
 private[sbt] object Observable {
   def map[T, R](observable: Observable[T], f: T => R): Observable[R] = new Observable[R] {
     override def addObserver(observer: Observer[R]): AutoCloseable =
-      observable.addObserver(new Observer[T] {
-        override def onNext(t: T): Unit = observer.onNext(f(t))
-      })
+      observable.addObserver(t => observer.onNext(f(t)))
     override def close(): Unit = observable.close()
   }
   def filter[T](observable: Observable[T], f: T => Boolean): Observable[T] = new Observable[T] {
     override def addObserver(observer: Observer[T]): AutoCloseable =
-      observable.addObserver(new Observer[T] {
-        override def onNext(t: T): Unit = if (f(t)) observer.onNext(t)
-      })
+      observable.addObserver(t => if (f(t)) observer.onNext(t))
     override def close(): Unit = observable.close()
   }
 }
