@@ -11,20 +11,22 @@ import sbt.io.{ AllPassFilter, Glob }
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.util.Try
 
-private[io] class FileCache[+T](converter: (Path, SimpleFileAttributes) => CustomFileAttributes[T],
+private[io] class FileCache[+T](converter: (Path, SimpleFileAttributes) => Try[T],
                                 globs: mutable.Set[Glob]) {
-  def this(converter: (Path, SimpleFileAttributes) => CustomFileAttributes[T]) =
+  def this(converter: (Path, SimpleFileAttributes) => Try[T]) =
     this(converter, ConcurrentHashMap.newKeySet[Glob].asScala)
   import FileCache._
   private[this] val files =
-    Collections.synchronizedSortedMap(new ConcurrentSkipListMap[Path, CustomFileAttributes[T]])
-  private[this] val view: NioFileTreeView[CustomFileAttributes[T]] =
-    FileTreeView.DEFAULT.map(converter)
+    Collections.synchronizedSortedMap(
+      new ConcurrentSkipListMap[Path, (SimpleFileAttributes, Try[T])])
+  private[this] val view: NioFileTreeView[(SimpleFileAttributes, Try[T])] =
+    FileTreeView.DEFAULT.map((p: Path, a: SimpleFileAttributes) => a -> converter(p, a))
   private[io] def update(
       path: Path,
       attributes: SimpleFileAttributes,
-  ): Seq[FileEvent[CustomFileAttributes[T]]] = {
+  ): Seq[FileEvent[(SimpleFileAttributes, Try[T])]] = {
     if (globInclude(path)) {
       files.synchronized {
         val subMap = files.subMap(path, ceiling(path))
@@ -33,8 +35,8 @@ private[io] class FileCache[+T](converter: (Path, SimpleFileAttributes) => Custo
             add(Glob(path, (0, maxDepthForPath(path)), (_: Path) => true), attributes)
             subMap.asScala.map { case (p, a) => Creation(p, a) }.toIndexedSeq
           case null => Nil // we weren't monitoring this no longer extant path
-          case p if attributes.exists =>
-            Update(path, p, converter(path, attributes)) :: Nil
+          case prev if attributes.exists =>
+            Update(path, prev, attributes -> converter(path, attributes)) :: Nil
           case _ =>
             remove(subMap).map { case (p, a) => Deletion(p, a) }
         }
@@ -43,7 +45,7 @@ private[io] class FileCache[+T](converter: (Path, SimpleFileAttributes) => Custo
       Nil
     }
   }
-  private[io] def refresh(glob: Glob): Seq[FileEvent[CustomFileAttributes[T]]] = {
+  private[io] def refresh(glob: Glob): Seq[FileEvent[(SimpleFileAttributes, Try[T])]] = {
     val path = glob.base
     if (globInclude(path)) {
       val subMap = files.subMap(path, ceiling(path))
@@ -55,24 +57,20 @@ private[io] class FileCache[+T](converter: (Path, SimpleFileAttributes) => Custo
         case _ =>
       }
       val current = subMap.asScala.toMap
-      val result = new util.ArrayList[FileEvent[CustomFileAttributes[T]]].asScala
+      val result = new util.ArrayList[FileEvent[(SimpleFileAttributes, Try[T])]].asScala
       previous.foreach {
-        case (p, prevAttributes) =>
+        case (p, prevPair) =>
           current.get(p) match {
-            case Some(newAttributes) if prevAttributes != newAttributes =>
-              result += Update(p, prevAttributes, newAttributes)
+            case Some(newPair) if prevPair != newPair =>
+              result += Update(p, prevPair, newPair)
             case None =>
-              val value = prevAttributes.value
+              val (attrs, value) = prevPair
               result += Deletion(
                 p,
-                CustomFileAttributes.get(
-                  path,
-                  SimpleFileAttributes.get(exists = false,
-                                           prevAttributes.isDirectory,
-                                           prevAttributes.isRegularFile,
-                                           prevAttributes.isSymbolicLink),
-                  value.fold((t: Throwable) => throw t, identity)
-                )
+                SimpleFileAttributes.get(exists = false,
+                                         attrs.isDirectory,
+                                         attrs.isRegularFile,
+                                         attrs.isSymbolicLink) -> value
               )
             case _ =>
           }
@@ -91,15 +89,14 @@ private[io] class FileCache[+T](converter: (Path, SimpleFileAttributes) => Custo
       Nil
     }
   }
-  private[io] def list(
-      glob: Glob,
-      filter: CustomFileAttributes[T] => Boolean): Seq[(Path, CustomFileAttributes[T])] = {
+  private[io] def list(glob: Glob, filter: (SimpleFileAttributes, Try[T]) => Boolean)
+    : Seq[(Path, (SimpleFileAttributes, Try[T]))] = {
     files
       .subMap(glob.base, ceiling(glob.base))
       .asScala
       .filter {
-        case (p, a) =>
-          glob.filter(p) && filter(a)
+        case (p, (a, v)) =>
+          glob.filter(p) && filter(a, v)
       }
       .toIndexedSeq
   }
@@ -119,16 +116,16 @@ private[io] class FileCache[+T](converter: (Path, SimpleFileAttributes) => Custo
       }
     }
   }
-  private[this] def remove(subMap: util.SortedMap[Path, CustomFileAttributes[T]])
-    : Seq[(Path, CustomFileAttributes[T])] = {
+  private[this] def remove(subMap: util.SortedMap[Path, (SimpleFileAttributes, Try[T])])
+    : Seq[(Path, (SimpleFileAttributes, Try[T]))] = {
     val allEntries = subMap.asScala.toIndexedSeq
     allEntries.foreach { case (p, _) => subMap.remove(p) }
     allEntries
   }
   private[this] def add(glob: Glob, simpleFileAttributes: SimpleFileAttributes): Unit = {
-    val newFiles = new util.HashMap[Path, CustomFileAttributes[T]]
+    val newFiles = new util.HashMap[Path, (SimpleFileAttributes, Try[T])]
     val asScala = newFiles.asScala
-    asScala += glob.base -> converter(glob.base, simpleFileAttributes)
+    asScala += (glob.base -> (simpleFileAttributes -> converter(glob.base, simpleFileAttributes)))
     if (simpleFileAttributes.isDirectory)
       newFiles.asScala ++= view.list(glob, AllPass)
     files.putAll(newFiles)

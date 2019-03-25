@@ -2,7 +2,7 @@ import Dependencies._
 import com.typesafe.tools.mima.core._, ProblemFilters._
 
 
-ThisBuild / scalafmtOnCompile := true
+ThisBuild / scalafmtOnCompile := false
 ThisBuild / git.baseVersion := "1.3.0"
 ThisBuild / bintrayPackage := "io"
 ThisBuild / homepage := Some(url("https://github.com/sbt/io"))

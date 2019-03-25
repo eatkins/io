@@ -24,7 +24,7 @@ import sbt.io.syntax._
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
-import scala.util.Success
+import scala.util.{ Success, Try }
 import scala.util.control.NonFatal
 
 private[sbt] object WatchServiceBackedObservable {
@@ -34,17 +34,17 @@ import sbt.internal.io.WatchServiceBackedObservable._
 private[sbt] class WatchServiceBackedObservable[+T](
     s: NewWatchState,
     delay: FiniteDuration,
-    converter: (Path, SimpleFileAttributes) => CustomFileAttributes[T],
+    converter: (Path, SimpleFileAttributes) => Try[T],
     closeService: Boolean,
     logger: WatchLogger)
-    extends Registerable[FileEvent[CustomFileAttributes[T]]]
-    with Observable[FileEvent[CustomFileAttributes[T]]] {
-  private[this] type Event[A] = FileEvent[CustomFileAttributes[A]]
+    extends Registerable[FileEvent[(SimpleFileAttributes, Try[T])]]
+    with Observable[FileEvent[(SimpleFileAttributes, Try[T])]] {
+  private[this] type Event[A] = FileEvent[(SimpleFileAttributes, Try[T])]
   private[this] val closed = new AtomicBoolean(false)
-  private[this] val observers = new Observers[FileEvent[CustomFileAttributes[T]]]
+  private[this] val observers = new Observers[FileEvent[(SimpleFileAttributes, Try[T])]]
   private[this] val fileCache = new FileCache(converter)
-  private[this] val view: NioFileTreeView[CustomFileAttributes[T]] =
-    FileTreeView.DEFAULT.map(converter)
+  private[this] val view: NioFileTreeView[(SimpleFileAttributes, Try[T])] =
+    FileTreeView.DEFAULT.map((p: Path, a: SimpleFileAttributes) => a -> converter(p, a))
   private[this] val thread: Thread = {
     val latch = new CountDownLatch(1)
     new Thread(s"watch-state-event-thread-${eventThreadId.incrementAndGet()}") {
@@ -97,26 +97,26 @@ private[sbt] class WatchServiceBackedObservable[+T](
           logger.debug(s"Received events:\n${allEvents.mkString("\n")}")
           def process(event: Event[T]): Seq[Event[T]] = {
             (event match {
-              case Creation(path, attrs) if attrs.isDirectory =>
+              case Creation(path, (attrs, _)) if attrs.isDirectory =>
                 s.register(path)
                 event +: view.list(path * AllPassFilter, AllPass).flatMap {
                   case (p, a) =>
                     process(Creation(p, a))
                 }
-              case Deletion(p, a) if a.isDirectory =>
+              case Deletion(p, (attrs, _)) if attrs.isDirectory =>
                 val events = fileCache.refresh(p ** AllPassFilter)
-                events.view.filter(_.attributes.isDirectory).foreach(e => s.unregister(e.path))
+                events.view.filter(_.attributes._1.isDirectory).foreach(e => s.unregister(e.path))
                 events
               case e => e :: Nil
             }).map {
-              case d @ Deletion(path, attributes) =>
+              case d @ Deletion(path, (attributes, value)) =>
                 val newAttrs = SimpleFileAttributes.get(exists = false,
                                                         attributes.isDirectory,
                                                         attributes.isRegularFile,
                                                         attributes.isSymbolicLink)
                 Deletion(
                   path,
-                  CustomFileAttributes.getEither[T](path, newAttrs, attributes.value),
+                  newAttrs -> value,
                   d.occurredAt
                 )
               case e => e
@@ -127,7 +127,8 @@ private[sbt] class WatchServiceBackedObservable[+T](
 
     }
   }
-  override def addObserver(observer: Observer[FileEvent[CustomFileAttributes[T]]]): AutoCloseable =
+  override def addObserver(
+      observer: Observer[FileEvent[(SimpleFileAttributes, Try[T])]]): AutoCloseable =
     observers.addObserver(observer)
 
   override def close(): Unit = {
@@ -140,22 +141,22 @@ private[sbt] class WatchServiceBackedObservable[+T](
   }
 
   override def register(
-      glob: Glob): Either[IOException, Observable[FileEvent[CustomFileAttributes[T]]]] = {
+      glob: Glob): Either[IOException, Observable[FileEvent[(SimpleFileAttributes, Try[T])]]] = {
     try {
       fileCache.register(glob)
-      fileCache.list(glob.withFilter(AllPassFilter), _.isDirectory) foreach {
-        case (p, _) =>
+      fileCache.list(glob.withFilter(AllPassFilter), (a: SimpleFileAttributes, _) => a.isDirectory) foreach {
+        case (p: Path, _) =>
           s.register(p)
       }
-      val observable = new Observers[FileEvent[CustomFileAttributes[T]]] {
-        override def onNext(t: FileEvent[CustomFileAttributes[T]]): Unit = {
+      val observable = new Observers[FileEvent[(SimpleFileAttributes, Try[T])]] {
+        override def onNext(t: FileEvent[(SimpleFileAttributes, Try[T])]): Unit = {
           if (glob.toFileFilter.accept(t.path.toFile)) super.onNext(t)
         }
       }
       val handle = observers.addObserver(observable)
-      Right(new Observable[FileEvent[CustomFileAttributes[T]]] {
+      Right(new Observable[FileEvent[(SimpleFileAttributes, Try[T])]] {
         override def addObserver(
-            observer: Observer[FileEvent[CustomFileAttributes[T]]]): AutoCloseable =
+            observer: Observer[FileEvent[(SimpleFileAttributes, Try[T])]]): AutoCloseable =
           observable.addObserver(observer)
         override def close(): Unit = handle.close()
         override def toString = s"Observable($glob)"

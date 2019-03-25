@@ -14,7 +14,6 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{ Files, NoSuchFileException, Path => NioPath }
 
 import scala.util.Try
-import scala.util.control.NonFatal
 
 /**
  * Represents a subset of BasicFileAttributes that can sometimes be evaluated without running
@@ -54,44 +53,5 @@ private[sbt] object SimpleFileAttributes {
     override def toString: String =
       s"SimpleFileAttributes(isDirectory = $isDirectory, isRegularFile = $isRegularFile" +
         s", isSymbolicLink = $isSymbolicLink, exists = $exists)"
-  }
-}
-
-private[sbt] trait CustomFileAttributes[+T] extends SimpleFileAttributes {
-  def value: Either[Throwable, T]
-}
-private[sbt] object CustomFileAttributes {
-  private[sbt] def get[T](path: NioPath,
-                          simpleFileAttributes: SimpleFileAttributes,
-                          t: T): CustomFileAttributes[T] = new Impl(Right(t), simpleFileAttributes)
-  private[sbt] def getEither[T](path: NioPath,
-                                simpleFileAttributes: SimpleFileAttributes,
-                                t: Either[Throwable, T]): CustomFileAttributes[T] =
-    new Impl(t, simpleFileAttributes)
-  private[sbt] def get[T](path: NioPath,
-                          simpleFileAttributes: SimpleFileAttributes,
-                          f: (NioPath, SimpleFileAttributes) => T): CustomFileAttributes[T] = {
-    val value = try Right(f(path, simpleFileAttributes))
-    catch { case NonFatal(t) => Left(t) }
-    new Impl(value, simpleFileAttributes)
-  }
-  private class Impl[T](override val value: Either[Throwable, T], attributes: SimpleFileAttributes)
-      extends CustomFileAttributes[T] {
-    override def exists: Boolean = attributes.exists
-    override def isRegularFile: Boolean = attributes.isRegularFile
-    override def isDirectory: Boolean = attributes.isDirectory
-    override def isSymbolicLink: Boolean = attributes.isSymbolicLink
-    override def equals(o: Any): Boolean = o match {
-      case that: CustomFileAttributes[_] =>
-        (this.isDirectory == that.isDirectory) && (this.isRegularFile == that.isRegularFile) &&
-          (this.isSymbolicLink == that.isSymbolicLink) && (this.exists && that.exists) &&
-          (this.value == that.value)
-      case _ => false
-    }
-    override def hashCode: Int =
-      ((isDirectory.hashCode * 31) ^ (isRegularFile.hashCode * 31)) ^ (isSymbolicLink.hashCode * 31)
-    override def toString: String =
-      s"CustomFileAttributes(isDirectory = $isDirectory, isRegularFile = $isRegularFile" +
-        s", isSymbolicLink = $isSymbolicLink, value = $value)"
   }
 }
