@@ -44,8 +44,7 @@ private[sbt] trait FileEventMonitor[+T] extends AutoCloseable {
 }
 private[sbt] object FileEventMonitor {
 
-  def apply[T <: SimpleFileAttributes](observable: Observable[FileEvent[T]],
-                                       logger: WatchLogger = NullWatchLogger)(
+  def apply[T](observable: Observable[FileEvent[T]], logger: WatchLogger = NullWatchLogger)(
       implicit timeSource: TimeSource): FileEventMonitor[FileEvent[T]] =
     new FileEventMonitorImpl[T](observable, logger)
 
@@ -69,16 +68,14 @@ private[sbt] object FileEventMonitor {
    *                        within an anti-entropy window for the event path to trigger. This
    *                        is not a perfect solution, but a smarter solution would require
    *                        introspection of the internal state of the pending events.
-   * @param deadlineSource controls the clock used for time stamping events. It should generally
-   *                       only be overridden in testing
    * @tparam T the generic type for the [[Observable]] that we're monitoring
    * @return the [[FileEventMonitor]] instance.
    */
-  private[io] def antiEntropy[T <: SimpleFileAttributes](observable: Observable[FileEvent[T]],
-                                                         period: FiniteDuration,
-                                                         logger: WatchLogger,
-                                                         quarantinePeriod: FiniteDuration,
-                                                         retentionPeriod: FiniteDuration)(
+  private[io] def antiEntropy[T](observable: Observable[FileEvent[T]],
+                                 period: FiniteDuration,
+                                 logger: WatchLogger,
+                                 quarantinePeriod: FiniteDuration,
+                                 retentionPeriod: FiniteDuration)(
       implicit timeSource: TimeSource): FileEventMonitor[FileEvent[T]] = {
     new AntiEntropyFileEventMonitor(period,
                                     new FileEventMonitorImpl[T](observable, logger),
@@ -171,7 +168,7 @@ private[sbt] object FileEventMonitor {
       observable.close()
     }
   }
-  private class AntiEntropyFileEventMonitor[T <: SimpleFileAttributes](
+  private class AntiEntropyFileEventMonitor[T](
       period: FiniteDuration,
       fileEventMonitor: FileEventMonitor[FileEvent[T]],
       logger: WatchLogger,
@@ -208,7 +205,7 @@ private[sbt] object FileEventMonitor {
       val transformed: Seq[FileEvent[T]] = results.flatMap {
         case event @ FileEvent(path, attributes) =>
           val occurredAt = event.occurredAt
-          val quarantined = if (event.attributes.exists) quarantinedEvents.remove(path) else None
+          val quarantined = if (event.exists) quarantinedEvents.remove(path) else None
           quarantined match {
             case Some(d @ Deletion(_, oldAttributes)) =>
               antiEntropyDeadlines.put(path, d.occurredAt + period)
@@ -223,7 +220,7 @@ private[sbt] object FileEventMonitor {
                     "the last event for this path."
                   logger.debug(msg)
                   None
-                case _ if !attributes.exists =>
+                case _ if !event.exists =>
                   quarantinedEvents.put(path, event)
                   logger.debug(s"Quarantining deletion event for path $path for $period")
                   None

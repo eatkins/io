@@ -15,6 +15,7 @@ import java.nio.file.{ Path => NioPath }
 private[sbt] sealed trait FileEvent[+T] {
   def path: NioPath
   def attributes: T
+  def exists: Boolean
   def occurredAt: Deadline
 }
 private[sbt] object FileEvent {
@@ -26,7 +27,9 @@ private[sbt] object FileEvent {
     }
   private[sbt] abstract case class Creation[+T] private[FileEvent] (override val path: NioPath,
                                                                     attributes: T)
-      extends FileEvent[T]
+      extends FileEvent[T] {
+    override def exists: Boolean = true
+  }
   private[sbt] object Creation {
     def apply[T](path: NioPath, attributes: T)(implicit timeSource: TimeSource): Creation[T] =
       new Creation(path, attributes) { override val occurredAt: Deadline = timeSource.now }
@@ -36,7 +39,9 @@ private[sbt] object FileEvent {
   private[sbt] abstract case class Update[+T] private[FileEvent] (override val path: NioPath,
                                                                   previousAttributes: T,
                                                                   attributes: T)
-      extends FileEvent[T]
+      extends FileEvent[T] {
+    override def exists: Boolean = true
+  }
   private[sbt] object Update {
     def apply[T](path: NioPath, previousAttributes: T, attributes: T)(
         implicit timeSource: TimeSource): Update[T] =
@@ -53,7 +58,9 @@ private[sbt] object FileEvent {
   }
   private[sbt] abstract case class Deletion[+T] private[FileEvent] (override val path: NioPath,
                                                                     override val attributes: T)
-      extends FileEvent[T]
+      extends FileEvent[T] {
+    override def exists: Boolean = true
+  }
   private[sbt] object Deletion {
     def apply[T](path: NioPath, attributes: T)(implicit timeSource: TimeSource): Deletion[T] =
       new Deletion(path, attributes) { override val occurredAt: Deadline = timeSource.now }
