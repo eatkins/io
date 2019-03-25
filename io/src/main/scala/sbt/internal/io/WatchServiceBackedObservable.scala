@@ -24,7 +24,7 @@ import sbt.io.syntax._
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
-import scala.util.{ Success, Try }
+import scala.util.Try
 import scala.util.control.NonFatal
 
 private[sbt] object WatchServiceBackedObservable {
@@ -87,9 +87,9 @@ private[sbt] class WatchServiceBackedObservable[T](s: NewWatchState,
               fileCache.refresh(keyPath ** AllPassFilter)
             case e if !e.kind.equals(OVERFLOW) && e.context != null =>
               val path = keyPath.resolve(e.context.asInstanceOf[Path])
-              FileAttributes.get(path) match {
-                case Success(attrs) => fileCache.update(path, attrs)
-                case _              => Nil
+              FileAttributes(path) match {
+                case Right(attrs) => fileCache.update(path, attrs)
+                case _            => Nil
               }
             case _ => Nil: Seq[Event[T]]
           }
@@ -109,10 +109,10 @@ private[sbt] class WatchServiceBackedObservable[T](s: NewWatchState,
               case e => e :: Nil
             }).map {
               case d @ Deletion(path, (attributes, value)) =>
-                val newAttrs = FileAttributes.get(exists = false,
-                                                  attributes.isDirectory,
-                                                  attributes.isRegularFile,
-                                                  attributes.isSymbolicLink)
+                val newAttrs = FileAttributes(isDirectory = attributes.isDirectory,
+                                              isOther = false,
+                                              isRegularFile = attributes.isRegularFile,
+                                              isSymbolicLink = attributes.isSymbolicLink)
                 Deletion(
                   path,
                   newAttrs -> value,

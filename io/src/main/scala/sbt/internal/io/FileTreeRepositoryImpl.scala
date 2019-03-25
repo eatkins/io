@@ -38,10 +38,10 @@ private[sbt] class FileTreeRepositoryImpl[T](converter: (NioPath, FileAttributes
   private[this] val underlying = FileTreeRepositories.get[(FileAttributes, Try[T])](
     (typedPath: STypedPath) => {
       val path = typedPath.getPath
-      val simpleFileAttributes = FileAttributes.get(typedPath.exists,
-                                                    typedPath.isDirectory,
-                                                    typedPath.isDirectory,
-                                                    typedPath.isSymbolicLink)
+      val simpleFileAttributes = FileAttributes(isDirectory = typedPath.isDirectory,
+                                                isOther = false,
+                                                isRegularFile = typedPath.isFile,
+                                                isSymbolicLink = typedPath.isSymbolicLink)
       simpleFileAttributes -> converter(path, simpleFileAttributes)
     },
     true

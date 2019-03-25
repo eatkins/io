@@ -17,11 +17,10 @@ class FileEventMonitorSpec extends FlatSpec with Matchers {
       logger: WatchLogger)(implicit timeSource: TimeSource): FileEventMonitor[FileEvent[T]] =
     FileEventMonitor.antiEntropy(observable, period, logger, 50.millis, 10.minutes)
   object TestAttributes {
-    def apply(exists: Boolean = true,
-              isDirectory: Boolean = false,
+    def apply(isDirectory: Boolean = false,
               isRegularFile: Boolean = false,
               isSymbolicLink: Boolean = false): FileAttributes =
-      FileAttributes.get(exists, isDirectory, isRegularFile, isSymbolicLink)
+      FileAttributes(isDirectory, isOther = false, isRegularFile, isSymbolicLink)
   }
   class DeterminsticTimeSource extends TimeSource with AutoCloseable {
     private val currentTime = new AtomicReference[FiniteDuration](System.currentTimeMillis.millis)
@@ -131,7 +130,7 @@ class FileEventMonitorSpec extends FlatSpec with Matchers {
                                    quarantinePeriod,
                                    10.minutes)
     val foo = Paths.get("foo")
-    val fooAttributes = TestAttributes(exists = false, isRegularFile = true)
+    val fooAttributes = FileAttributes.NonExistent
     val fooDeletion = Deletion(foo, fooAttributes, Deadline.now)
     observers.onNext(fooDeletion)
     monitor.poll(0.millis) shouldBe Nil
@@ -149,7 +148,7 @@ class FileEventMonitorSpec extends FlatSpec with Matchers {
                                    quarantinePeriod,
                                    10.minutes)
     val foo = Paths.get("foo")
-    val deletionAttributes = TestAttributes(exists = false, isRegularFile = true)
+    val deletionAttributes = FileAttributes.NonExistent
     val fooDeletion = Deletion(foo, deletionAttributes)
     val creationAttributes = TestAttributes(isRegularFile = true)
     val fooCreation = Creation(foo, creationAttributes)

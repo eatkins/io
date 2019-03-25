@@ -14,6 +14,8 @@ import java.io.IOException
 import java.nio.file.{ Path, WatchKey }
 import java.util.concurrent.ConcurrentHashMap
 
+import sbt.internal.io.FileEvent.Deletion
+import sbt.io.FileAttributes.NonExistent
 import sbt.io._
 
 import scala.collection.JavaConverters._
@@ -44,12 +46,14 @@ private[sbt] class LegacyFileTreeRepository[T](converter: (Path, FileAttributes)
     )
   private[this] val observers = new Observers[FileEvent[(FileAttributes, Try[T])]]
   private[this] val handle =
-    observable.addObserver(new Observer[FileEvent[(FileAttributes, Try[T])]] {
-      override def onNext(event: FileEvent[(FileAttributes, Try[T])]): Unit = {
-        val events: Seq[FileEvent[(FileAttributes, Try[T])]] =
-          fileCache.update(event.path, event.attributes._1)
-        events.foreach(observers.onNext)
+    observable.addObserver((event: FileEvent[(FileAttributes, Try[T])]) => {
+      val attributes = event match {
+        case _: Deletion[_] => NonExistent
+        case _              => event.attributes._1
       }
+      val events: Seq[FileEvent[(FileAttributes, Try[T])]] =
+        fileCache.update(event.path, attributes)
+      events.foreach(observers.onNext)
     })
   override def close(): Unit = {
     handle.close()

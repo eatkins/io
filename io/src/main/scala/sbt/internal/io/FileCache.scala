@@ -7,6 +7,7 @@ import java.util.concurrent.{ ConcurrentHashMap, ConcurrentSkipListMap }
 
 import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
 import sbt.internal.io.FileTreeView.AllPass
+import sbt.io.FileAttributes.NonExistent
 import sbt.io.{ AllPassFilter, FileAttributes, Glob }
 
 import scala.collection.JavaConverters._
@@ -29,12 +30,13 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
     if (globInclude(path)) {
       files.synchronized {
         val subMap = files.subMap(path, ceiling(path))
+        val exists = attributes != NonExistent
         subMap.get(path) match {
-          case null if attributes.exists =>
+          case null if exists =>
             add(Glob(path, (0, maxDepthForPath(path)), (_: Path) => true), attributes)
             subMap.asScala.map { case (p, a) => Creation(p, a) }.toIndexedSeq
           case null => Nil // we weren't monitoring this no longer extant path
-          case prev if attributes.exists =>
+          case prev if exists =>
             Update(path, prev, attributes -> converter(path, attributes)) :: Nil
           case _ =>
             remove(subMap).map { case (p, a) => Deletion(p, a) }
@@ -50,11 +52,7 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
       val subMap = files.subMap(path, ceiling(path))
       val previous = subMap.asScala.toMap
       subMap.clear()
-      FileAttributes.get(path).foreach {
-        case attributes if attributes.exists =>
-          add(glob, attributes)
-        case _ =>
-      }
+      FileAttributes(path).foreach(add(glob, _))
       val current = subMap.asScala.toMap
       val result = new util.ArrayList[FileEvent[(FileAttributes, Try[T])]].asScala
       previous.foreach {
@@ -66,10 +64,10 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
               val (attrs, value) = prevPair
               result += Deletion(
                 p,
-                FileAttributes.get(exists = false,
-                                   attrs.isDirectory,
-                                   attrs.isRegularFile,
-                                   attrs.isSymbolicLink) -> value
+                FileAttributes(isDirectory = attrs.isDirectory,
+                               isOther = false,
+                               isRegularFile = attrs.isRegularFile,
+                               isSymbolicLink = attrs.isSymbolicLink) -> value
               )
             case _ =>
           }
@@ -103,7 +101,7 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
   private[io] def register(glob: Glob): Unit = {
     val withoutFilter = glob.withFilter(AllPassFilter)
     if (!globs.exists(_ covers withoutFilter) && globs.add(withoutFilter)) {
-      FileAttributes.get(glob.base).foreach(add(withoutFilter, _))
+      FileAttributes(glob.base).foreach(add(withoutFilter, _))
     }
   }
   private[io] def unregister(glob: Glob): Unit = {
@@ -122,13 +120,15 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
     allEntries.foreach { case (p, _) => subMap.remove(p) }
     allEntries
   }
-  private[this] def add(glob: Glob, simpleFileAttributes: FileAttributes): Unit = {
-    val newFiles = new util.HashMap[Path, (FileAttributes, Try[T])]
-    val asScala = newFiles.asScala
-    asScala += (glob.base -> (simpleFileAttributes -> converter(glob.base, simpleFileAttributes)))
-    if (simpleFileAttributes.isDirectory)
-      newFiles.asScala ++= view.list(glob, AllPass)
-    files.putAll(newFiles)
+  private[this] def add(glob: Glob, fileAttributes: FileAttributes): Unit = {
+    if (fileAttributes != NonExistent) {
+      val newFiles = new util.HashMap[Path, (FileAttributes, Try[T])]
+      val asScala = newFiles.asScala
+      asScala += (glob.base -> (fileAttributes -> converter(glob.base, fileAttributes)))
+      if (fileAttributes.isDirectory)
+        newFiles.asScala ++= view.list(glob, AllPass)
+      files.putAll(newFiles)
+    }
   }
   private[this] def globInclude: Path => Boolean = {
     val allGlobs = globs.toIndexedSeq

@@ -13,11 +13,10 @@ package sbt.internal.io
 import java.nio.file.{ NoSuchFileException, NotDirectoryException, Path => NioPath }
 
 import com.swoval.files.{ FileTreeViews, TypedPath }
-import com.swoval.functional.Filter
+import sbt.internal.io.SwovalConverters._
 import sbt.io._
 
 import scala.collection.JavaConverters._
-import SwovalConverters._
 
 private[sbt] object DefaultFileTreeView extends NioFileTreeView[FileAttributes] {
   private[this] val fileTreeView =
@@ -32,16 +31,14 @@ private[sbt] object DefaultFileTreeView extends NioFileTreeView[FileAttributes] 
     Retry {
       try {
         fileTreeView
-          .list(glob.base, glob.range.toSwovalDepth, new Filter[TypedPath] {
-            override def accept(t: TypedPath): Boolean = true
-          })
+          .list(glob.base, glob.range.toSwovalDepth, (_: TypedPath) => true)
           .asScala
           .flatMap { typedPath =>
             val path = typedPath.getPath
-            val attributes = FileAttributes.get(typedPath.exists,
-                                                typedPath.isDirectory,
-                                                typedPath.isFile,
-                                                typedPath.isSymbolicLink)
+            val attributes = FileAttributes(isDirectory = typedPath.isDirectory,
+                                            isOther = false,
+                                            isRegularFile = typedPath.isFile,
+                                            isSymbolicLink = typedPath.isSymbolicLink)
             val pair = path -> attributes
             if (glob.filter(path) && filter(pair)) Some(pair) else None
           }

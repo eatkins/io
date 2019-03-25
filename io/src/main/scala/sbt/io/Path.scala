@@ -326,10 +326,8 @@ object Path extends Mapper {
   private class AttributedFile(path: NioPath, attributes: FileAttributes)
       extends File(path.toString) {
     override def isDirectory: Boolean = attributes.isDirectory
-    def isRegularFile: Boolean = attributes.isRegularFile
+    override def isFile: Boolean = attributes.isRegularFile
     def isSymbolicLink: Boolean = attributes.isSymbolicLink
-    override def exists: Boolean = attributes.exists
-
   }
 }
 
