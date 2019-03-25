@@ -18,6 +18,7 @@ import sbt.io._
 import sbt.io.syntax._
 
 import scala.concurrent.duration.FiniteDuration
+import scala.util.Try
 
 /**
  * A hybrid [[FileTreeRepository]] that caches some paths and monitors them with os notifications and
@@ -28,30 +29,30 @@ import scala.concurrent.duration.FiniteDuration
  *
  * @tparam T the type of the data values associated with each paths.
  */
-private[sbt] trait HybridPollingFileTreeRepository[+T]
-    extends FileTreeRepository[CustomFileAttributes[T]] { self =>
+private[sbt] trait HybridPollingFileTreeRepository[T]
+    extends FileTreeRepository[(SimpleFileAttributes, Try[T])] { self =>
   def toPollingObservable(delay: FiniteDuration,
                           logger: WatchLogger): Observable[Event[T]] with Registerable[Event[T]]
 }
 
-private[io] case class HybridPollingFileTreeRepositoryImpl[+T](
-    converter: (Path, SimpleFileAttributes) => CustomFileAttributes[T],
+private[io] case class HybridPollingFileTreeRepositoryImpl[T](
+    converter: (Path, SimpleFileAttributes) => Try[T],
     pollingGlobs: Seq[Glob])
     extends HybridPollingFileTreeRepository[T] { self =>
   private val repo = new FileTreeRepositoryImpl[T](converter)
-  private val view: NioFileTreeView[CustomFileAttributes[T]] =
-    DefaultFileTreeView.map((p: Path, a: SimpleFileAttributes) => converter(p, a))
+  private val view: NioFileTreeView[(SimpleFileAttributes, Try[T])] =
+    DefaultFileTreeView.map((p: Path, a: SimpleFileAttributes) => a -> converter(p, a))
   private[this] val observers = new Observers[Event[T]]
   private[this] val handle = repo.addObserver(observers)
 
   private def shouldPoll(glob: Glob): Boolean =
     pollingGlobs.exists(_.toFileFilter(acceptBase = true).accept(glob.base.toFile))
   override def addObserver(
-      observer: Observer[FileEvent[CustomFileAttributes[T]]]): AutoCloseable = {
+      observer: Observer[FileEvent[(SimpleFileAttributes, Try[T])]]): AutoCloseable = {
     observers.addObserver(observer)
   }
-  override def list(glob: Glob, filter: ((Path, CustomFileAttributes[T])) => Boolean)
-    : Seq[(Path, CustomFileAttributes[T])] = {
+  override def list(glob: Glob, filter: ((Path, (SimpleFileAttributes, Try[T]))) => Boolean)
+    : Seq[(Path, (SimpleFileAttributes, Try[T]))] = {
     if (!shouldPoll(glob)) {
       /*
        * The repository may contain some paths that require polling to access. We must remove
@@ -64,12 +65,12 @@ private[io] case class HybridPollingFileTreeRepositoryImpl[+T](
           shouldPoll(Glob(path.toFile, (0, 0), new ExactFileFilter(path.toFile)))
       }
       ready ++ needPoll
-        .filter(_._2.isDirectory)
+        .filter(_._2._1.isDirectory)
         .sortBy(_._1)
         .headOption
         .toSeq
         .flatMap {
-          case pair @ (path: Path, _: CustomFileAttributes[T]) =>
+          case pair @ (path: Path, _: (SimpleFileAttributes, Try[T])) =>
             val depth =
               if (glob.range._2 == Integer.MAX_VALUE) Integer.MAX_VALUE
               else glob.range._2 - path.relativize(path).getNameCount - 1
@@ -95,7 +96,7 @@ private[io] case class HybridPollingFileTreeRepositoryImpl[+T](
           watchState,
           delay,
           converter,
-          true,
+          closeService = true,
           logger
         )
       val handle: AutoCloseable = {
@@ -136,8 +137,8 @@ private[io] case class HybridPollingFileTreeRepositoryImpl[+T](
 }
 
 private[sbt] object HybridPollingFileTreeRepository {
-  type Event[+T] = FileEvent[CustomFileAttributes[T]]
-  def apply[T](converter: (Path, SimpleFileAttributes) => CustomFileAttributes[T],
+  type Event[T] = FileEvent[(SimpleFileAttributes, Try[T])]
+  def apply[T](converter: (Path, SimpleFileAttributes) => Try[T],
                pollingGlobs: Glob*): HybridPollingFileTreeRepository[T] =
     HybridPollingFileTreeRepositoryImpl(converter, pollingGlobs)
 }
