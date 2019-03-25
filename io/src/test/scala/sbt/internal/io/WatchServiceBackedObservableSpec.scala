@@ -11,6 +11,7 @@ import sbt.io.syntax._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
+import scala.util.Success
 
 class WatchServiceBackedObservableSpec extends FlatSpec {
   "register" should "work recursively" in IO.withTemporaryDirectory { dir =>
@@ -24,7 +25,7 @@ class WatchServiceBackedObservableSpec extends FlatSpec {
       new WatchServiceBackedObservable(
         watchState,
         100.millis,
-        (p: Path, a: SimpleFileAttributes) => CustomFileAttributes.get(p, a, ()),
+        (_: Path, _: SimpleFileAttributes) => Success(()),
         closeService = true,
         (_: Any) => {}
       )

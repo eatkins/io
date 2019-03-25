@@ -59,7 +59,7 @@ private[sbt] object FileEvent {
   private[sbt] abstract case class Deletion[+T] private[FileEvent] (override val path: NioPath,
                                                                     override val attributes: T)
       extends FileEvent[T] {
-    override def exists: Boolean = true
+    override def exists: Boolean = false
   }
   private[sbt] object Deletion {
     def apply[T](path: NioPath, attributes: T)(implicit timeSource: TimeSource): Deletion[T] =

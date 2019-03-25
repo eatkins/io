@@ -31,7 +31,7 @@ private[sbt] object WatchServiceBackedObservable {
   private val eventThreadId = new AtomicInteger(0)
 }
 import sbt.internal.io.WatchServiceBackedObservable._
-private[sbt] class WatchServiceBackedObservable[+T](
+private[sbt] class WatchServiceBackedObservable[T](
     s: NewWatchState,
     delay: FiniteDuration,
     converter: (Path, SimpleFileAttributes) => Try[T],

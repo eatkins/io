@@ -11,6 +11,7 @@ import sbt.io.{ WatchService, _ }
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.{ Deadline => _, _ }
+import scala.util.{ Success, Try }
 
 private[sbt] trait EventMonitorSpec { self: FlatSpec with Matchers =>
   def pollDelay: FiniteDuration
@@ -477,7 +478,7 @@ private[sbt] trait EventMonitorSpec { self: FlatSpec with Matchers =>
 }
 
 object EventMonitorSpec {
-  type Event = FileEvent[CustomFileAttributes[Unit]]
+  type Event = FileEvent[(SimpleFileAttributes, Try[Unit])]
   val AllPass: Any => Boolean = ((_: Any) => true).label("AllPass")
   val NonEmpty: Seq[FileEvent[_]] => Boolean = ((_: Seq[FileEvent[_]]).nonEmpty).label("NonEmpty")
   private implicit class LabeledFunction[T, R](val f: T => R) extends AnyVal {
@@ -578,10 +579,10 @@ object EventMonitorSpec {
 }
 
 private[sbt] trait RepoEventMonitorSpec extends FlatSpec with Matchers with EventMonitorSpec {
-  val converter: (Path, SimpleFileAttributes) => CustomFileAttributes[Unit] =
-    (path: Path, attrs: SimpleFileAttributes) => CustomFileAttributes.get(path, attrs, ())
-  private[sbt] def factory(f: (Path, SimpleFileAttributes) => CustomFileAttributes[Unit])
-    : FileTreeRepository[CustomFileAttributes[Unit]]
+  val converter: (Path, SimpleFileAttributes) => Try[Unit] =
+    (_: Path, _: SimpleFileAttributes) => Success(())
+  private[sbt] def factory(f: (Path, SimpleFileAttributes) => Try[Unit])
+    : FileTreeRepository[(SimpleFileAttributes, Try[Unit])]
   override def newObservable(globs: Seq[Glob], logger: Logger): Observable[Event] = {
     val repository = factory(converter)
     new Observable[Event] {
@@ -598,14 +599,14 @@ private[sbt] trait RepoEventMonitorSpec extends FlatSpec with Matchers with Even
 }
 class FileTreeRepositoryEventMonitorSpec extends RepoEventMonitorSpec {
   override def pollDelay: FiniteDuration = 100.millis
-  override private[sbt] def factory(f: (Path, SimpleFileAttributes) => CustomFileAttributes[Unit])
-    : FileTreeRepository[CustomFileAttributes[Unit]] = FileTreeRepository.default[Unit](f)
+  override private[sbt] def factory(f: (Path, SimpleFileAttributes) => Try[Unit])
+    : FileTreeRepository[(SimpleFileAttributes, Try[Unit])] = FileTreeRepository.default[Unit](f)
 }
 
 class LegacyFileTreeRepositoryEventMonitorSpec extends RepoEventMonitorSpec {
   override def pollDelay: FiniteDuration = 100.millis
-  override private[sbt] def factory(f: (Path, SimpleFileAttributes) => CustomFileAttributes[Unit])
-    : FileTreeRepository[CustomFileAttributes[Unit]] = FileTreeRepository.legacy[Unit](f)
+  override private[sbt] def factory(f: (Path, SimpleFileAttributes) => Try[Unit])
+    : FileTreeRepository[(SimpleFileAttributes, Try[Unit])] = FileTreeRepository.legacy[Unit](f)
 }
 
 private[sbt] abstract class SourceModificationWatchSpec(
@@ -639,9 +640,9 @@ private[sbt] abstract class SourceModificationWatchSpec(
     val observable = new WatchServiceBackedObservable[Unit](
       watchState,
       5.millis,
-      (p: Path, attrs: SimpleFileAttributes) => CustomFileAttributes.get(p, attrs, ()),
+      converter = (_: Path, _: SimpleFileAttributes) => Success(()),
       closeService = true,
-      logger)
+      logger = logger)
     observable.register(globs)
   }
 }
