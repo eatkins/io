@@ -55,9 +55,9 @@ class GlobPathFinderSpec extends FlatSpec {
     // These use the FileBuilder extension class for file.
     assert((dir: ToGlob).toGlob == Glob(dir, (0, 0), new ExactFileFilter(dir)))
     assert(dir.toGlob == Glob(dir, (0, 0), new ExactFileFilter(dir)))
-    assert(dir * AllPassFilter == Glob(dir, (1, 1), AllPassFilter))
-    assert((dir glob AllPassFilter) == Glob(dir, (1, 1), AllPassFilter))
-    assert(dir ** AllPassFilter == Glob(dir, (1, Int.MaxValue), AllPassFilter))
-    assert((dir globRecursive AllPassFilter) == Glob(dir, (1, Int.MaxValue), AllPassFilter))
+    assert(dir * AllPassFilter == Glob(dir, (0, 1), AllPassFilter))
+    assert((dir glob AllPassFilter) == Glob(dir, (0, 1), AllPassFilter))
+    assert(dir ** AllPassFilter == Glob(dir, (0, Int.MaxValue), AllPassFilter))
+    assert((dir globRecursive AllPassFilter) == Glob(dir, (0, Int.MaxValue), AllPassFilter))
   }
 }

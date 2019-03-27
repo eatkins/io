@@ -44,7 +44,8 @@ private[sbt] trait FileEventMonitor[+T] extends AutoCloseable {
 }
 private[sbt] object FileEventMonitor {
 
-  def apply[T](observable: Observable[FileEvent[T]], logger: WatchLogger = NullWatchLogger)(
+  private[sbt] def apply[T](observable: Observable[FileEvent[T]],
+                            logger: WatchLogger = NullWatchLogger)(
       implicit timeSource: TimeSource): FileEventMonitor[FileEvent[T]] =
     new FileEventMonitorImpl[T](observable, logger)
 
@@ -71,14 +72,50 @@ private[sbt] object FileEventMonitor {
    * @tparam T the generic type for the [[Observable]] that we're monitoring
    * @return the [[FileEventMonitor]] instance.
    */
-  private[io] def antiEntropy[T](observable: Observable[FileEvent[T]],
-                                 period: FiniteDuration,
-                                 logger: WatchLogger,
-                                 quarantinePeriod: FiniteDuration,
-                                 retentionPeriod: FiniteDuration)(
+  private[sbt] def antiEntropy[T](observable: Observable[FileEvent[T]],
+                                  period: FiniteDuration,
+                                  logger: WatchLogger,
+                                  quarantinePeriod: FiniteDuration,
+                                  retentionPeriod: FiniteDuration)(
       implicit timeSource: TimeSource): FileEventMonitor[FileEvent[T]] = {
     new AntiEntropyFileEventMonitor(period,
                                     new FileEventMonitorImpl[T](observable, logger),
+                                    logger,
+                                    quarantinePeriod,
+                                    retentionPeriod)
+  }
+
+  /**
+   * Create a [[FileEventMonitor]] that tracks recent events to prevent creating multiple events
+   * for the same path within the same window. This exists because there are many programs that
+   * may make a burst of modifications to a file in a short window. For example, many programs
+   * implement save by renaming a buffer file to the target file. This can create both a deletion
+   * and a creation event for the target file but we only want to create one file in this scenario.
+   * This scenario is so common that we specifically handle it with the quarantinePeriod parameter.
+   * When the monitor detects a file deletion, it does not actually produce an event for that
+   * path until the quarantinePeriod has elapsed or a creation or update event is detected.
+   *
+   * @param fileEventMonitor the delegate file event monitor
+   * @param period the anti-entropy quarantine period
+   * @param logger a debug logger
+   * @param quarantinePeriod configures how long we wait before creating an event for a delete file.
+   * @param retentionPeriod configures how long in wall clock time to cache the anti-entropy
+   *                        deadline for a path. This is needed because sometimes there are long
+   *                        delays between polls and we do not want a stale event that occurred
+   *                        within an anti-entropy window for the event path to trigger. This
+   *                        is not a perfect solution, but a smarter solution would require
+   *                        introspection of the internal state of the pending events.
+   * @tparam T the generic type for the [[Observable]] that we're monitoring
+   * @return the [[FileEventMonitor]] instance.
+   */
+  private[sbt] def antiEntropy[T](fileEventMonitor: FileEventMonitor[FileEvent[T]],
+                                  period: FiniteDuration,
+                                  logger: WatchLogger,
+                                  quarantinePeriod: FiniteDuration,
+                                  retentionPeriod: FiniteDuration)(
+      implicit timeSource: TimeSource): FileEventMonitor[FileEvent[T]] = {
+    new AntiEntropyFileEventMonitor(period,
+                                    fileEventMonitor,
                                     logger,
                                     quarantinePeriod,
                                     retentionPeriod)

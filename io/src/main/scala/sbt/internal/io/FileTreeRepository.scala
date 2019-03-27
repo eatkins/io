@@ -25,8 +25,6 @@ private[sbt] trait NioFileTreeView[+T] extends FileTreeView[(NioPath, T)] {
     list(glob, filter.tupled)
 }
 
-// scaladoc is horrible and I couldn't figure out how to link the overloaded method listEntries
-// in this message.
 /**
  * Monitors registered directories for file changes. A typical implementation will keep an
  * in memory cache of the file system that can be queried in [[FileTreeRepository!.list]]. The
@@ -96,9 +94,7 @@ private[sbt] object FileTreeRepository {
    */
   private[sbt] def legacy[T](converter: (NioPath, FileAttributes) => Try[T])
     : FileTreeRepository[(FileAttributes, Try[T])] =
-    new LegacyFileTreeRepository[T](converter, new WatchLogger {
-      override def debug(msg: => Any): Unit = {}
-    }, WatchService.default)
+    new LegacyFileTreeRepository[T](converter, (_: Any) => (), WatchService.default)
 
   /**
    * Create a [[FileTreeRepository]] with a provided logger. The generated repository will cache
@@ -117,17 +113,4 @@ private[sbt] object FileTreeRepository {
       watchService: WatchService): FileTreeRepository[(FileAttributes, Try[T])] =
     new LegacyFileTreeRepository[T](converter, logger, watchService)
 
-  /**
-   * Create a [[FileTreeRepository]]. The generated repository will cache the file system tree for some
-   * of the paths under monitoring, but others will need to be polled.
-   *
-   * @param converter function to generate a cache data value from a
-   *                  `(Path, FileAttributes)` pair
-   * @param pollingGlobs do not cache any path contained in these [[Glob]]s.
-   * @tparam T the generic type of the custom file attributes
-   * @return a file repository.
-   */
-  private[sbt] def hybrid[T](converter: (NioPath, FileAttributes) => Try[T],
-                             pollingGlobs: Glob*): HybridPollingFileTreeRepository[T] =
-    HybridPollingFileTreeRepository(converter, pollingGlobs: _*)
 }

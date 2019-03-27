@@ -372,11 +372,7 @@ private[sbt] trait EventMonitorSpec { self: FlatSpec with Matchers =>
 
     val globs = parentDir.toPath.toRealPath().toFile.scalaSourceGlobs
     var lines: Seq[String] = Nil
-    val logger = new WatchLogger {
-      override def debug(msg: => Any): Unit = lines.synchronized {
-        lines :+= msg.toString
-      }
-    }
+    val logger: WatchLogger = msg => lines.synchronized(lines :+= msg.toString)
     val observable = newObservable(globs, NullLogger)
     val monitor = FileEventMonitor(observable, logger)
     try {
@@ -527,7 +523,7 @@ object EventMonitorSpec {
   }
 
   trait Logger extends WatchLogger
-  object NullLogger extends Logger { override def debug(msg: => Any): Unit = {} }
+  object NullLogger extends Logger { override def debug(msg: Any): Unit = {} }
   // This can't be defined in MonitorOps because of a bug in the scala 2.10 compiler
   @tailrec
   private def drain(monitor: FileEventMonitor[Event],
@@ -549,7 +545,7 @@ object EventMonitorSpec {
   }
   class CachingWatchLogger extends Logger {
     val lines = new scala.collection.mutable.ArrayBuffer[String]
-    override def debug(msg: => Any): Unit = lines.synchronized { lines += msg.toString; () }
+    override def debug(msg: Any): Unit = lines.synchronized { lines += msg.toString; () }
     def printLines(msg: String): Unit = println(s"$msg. Log lines:\n${lines mkString "\n"}")
   }
   implicit class ObservableOps(val observable: Observable[Event] with Registerable[Event])

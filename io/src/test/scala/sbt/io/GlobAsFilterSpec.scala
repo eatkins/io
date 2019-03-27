@@ -11,13 +11,12 @@ class GlobAsFilterSpec extends FlatSpec {
     assert(filter.accept(dir))
     assert(!filter.accept(file))
     assert(!filter.accept(nestedFile))
-    assert(!dir.toGlob.withFilter(NothingFilter).toFileFilter.accept(dir))
+    assert(!dir.toGlob.withFilter(NothingFilter).filter(dir.toPath))
   }
   it should "work with globs" in IO.withTemporaryDirectory { dir =>
     val file = new File(dir, "file")
     val nestedFile = new File(new File(dir, "subdir"), "subdir-file")
     val glob = dir * AllPassFilter
-    assert(!glob.toFileFilter(acceptBase = false).accept(dir))
     assert(glob.toFileFilter.accept(dir))
     assert(glob.toFileFilter.accept(file))
     assert(!glob.toFileFilter.accept(nestedFile))
@@ -28,7 +27,6 @@ class GlobAsFilterSpec extends FlatSpec {
     val file = new File(dir, "file")
     val nestedFile = new File(new File(dir, "subdir"), "subdir-file")
     val glob = dir ** AllPassFilter
-    assert(!glob.toFileFilter(acceptBase = false).accept(dir))
     assert(glob.toFileFilter.accept(dir))
     assert(glob.toFileFilter.accept(file))
     assert(glob.toFileFilter.accept(nestedFile))

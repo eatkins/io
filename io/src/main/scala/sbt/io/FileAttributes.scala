@@ -12,7 +12,7 @@ import java.nio.file.{ Files, LinkOption, NoSuchFileException, Path => NioPath }
  * may not represent that current state of the file if the underlying file has been modified since
  * the instance was first created.
  */
-sealed trait FileAttributes {
+private[sbt] trait FileAttributes {
 
   /**
    * Returns true if the underlying file is a regular file.
@@ -41,7 +41,7 @@ sealed trait FileAttributes {
   def isOther: Boolean
 }
 
-object FileAttributes {
+private[sbt] object FileAttributes {
   case object NonExistent extends FileAttributes {
     override def isRegularFile: Boolean = false
     override def isDirectory: Boolean = false

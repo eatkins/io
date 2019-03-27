@@ -70,9 +70,9 @@ object Glob {
     def abs: NioPath = if (p.isAbsolute) p else p.toAbsolutePath
   }
   def apply(base: File, range: (Int, Int), filter: FileFilter): Glob =
-    new GlobImpl(base.toPath.abs, range, filter)
+    new GlobImpl(base.toPath.abs, range, new GlobAsFilter(base.toPath, range, filter))
   def apply(base: NioPath, range: (Int, Int), filter: NioPath => Boolean): Glob =
-    new GlobImpl(base.abs, range, filter)
+    new GlobImpl(base.abs, range, new GlobAsFilter(base, range, filter))
   private class GlobImpl(val base: NioPath, val range: (Int, Int), val filter: NioPath => Boolean)
       extends Glob {
     override def toString: String =
@@ -92,9 +92,9 @@ object Glob {
       Glob(base, (0, 0), new ExactFileFilter(base.toFile))
     }
     def \(component: String): Glob = this / component
-    def glob(filter: FileFilter): Glob = Glob(converter(repr), (1, 1), filter)
+    def glob(filter: FileFilter): Glob = Glob(converter(repr), (0, 1), filter)
     def *(filter: FileFilter): Glob = glob(filter)
-    def globRecursive(filter: FileFilter): Glob = Glob(converter(repr), (1, Int.MaxValue), filter)
+    def globRecursive(filter: FileFilter): Glob = Glob(converter(repr), (0, Int.MaxValue), filter)
     def allPaths: Glob = globRecursive(AllPassFilter)
     def **(filter: FileFilter): Glob = globRecursive(filter)
     def toGlob: Glob = {
@@ -118,8 +118,8 @@ object Glob {
       new GlobImpl(glob.base, (depth, glob.range._2), glob.filter)
     def withMaxDepth(depth: Int): Glob =
       new GlobImpl(glob.base, (glob.range._1, depth), glob.filter)
-    def toFileFilter: FileFilter = toFileFilter(acceptBase = true)
-    def toFileFilter(acceptBase: Boolean): FileFilter = new GlobAsFilter(glob, acceptBase)
+    private[sbt] def toFileFilter: sbt.io.FileFilter =
+      new SimpleFileFilter(file => glob.filter(file.toPath))
   }
   implicit def toPathFinder(glob: Glob): PathFinder = new io.PathFinder.GlobPathFinder(glob)
   implicit object ordering extends Ordering[Glob] {
@@ -127,39 +127,37 @@ object Glob {
       // We want greater depth to come first because when we are using a Seq[Glob] to
       // register with the file system cache, it is more efficient to register the broadest glob
       // first so that we don't have to list the base directory multiple times.
-      case 0 =>
-        right.range._2.compareTo(left.range._2)
+      case 0 => right.range._2.compareTo(left.range._2)
       case i => i
     }
   }
 
-  /**
-   * Provides a [[FileFilter]] given a [[Glob]].
-   * @param glob the glob to validate
-   * @param acceptBase toggles whether or not we should accept the base path even when the depth is
-   *                   greater than or equal to zero.
-   */
-  private final class GlobAsFilter(private val glob: Glob, private val acceptBase: Boolean)
-      extends FileFilter {
-    override def accept(pathname: File): Boolean = {
-      val path = pathname.toPath
-      val globPath = glob.base
+  private final class GlobAsFilter(private val base: NioPath,
+                                   private val range: (Int, Int),
+                                   private val filter: NioPath => Boolean)
+      extends (NioPath => Boolean) {
+    override def apply(path: NioPath): Boolean = {
+      val globPath = base
       if (path.startsWith(globPath)) {
         if (path == globPath) {
-          (acceptBase || glob.range._1 <= 0) && glob.filter(path)
+          range._1 <= 0 && filter(path)
         } else {
           val nameCount = globPath.relativize(path).getNameCount
-          checkRange(nameCount, glob.range) && glob.filter(path)
+          checkRange(nameCount, range) && filter(path)
         }
       } else {
         false
       }
     }
-    override def toString: String = s"GlobAsFilter($glob)"
+    override def toString: String = s"GlobFilter(filter)"
     override def equals(o: Any): Boolean = o match {
-      case that: GlobAsFilter => this.acceptBase == that.acceptBase && this.glob == that.glob
-      case _                  => false
+      case that: GlobAsFilter =>
+        this.base == that.base &&
+          this.range == that.range &&
+          this.filter == that.filter
+      case _ => false
     }
+    override def hashCode: Int = ((base.hashCode * 31) ^ range.hashCode * 31) ^ filter.hashCode * 31
   }
   private def checkRange(depth: Int, range: (Int, Int)): Boolean =
     depth >= range._1 && depth <= range._2
