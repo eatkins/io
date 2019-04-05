@@ -1,7 +1,8 @@
 package sbt.io
 
 import org.scalatest.FlatSpec
-import syntax._
+import sbt.internal.io.FileTreeView.{ AllPass, NoPass }
+import sbt.io.syntax._
 
 class GlobAsFilterSpec extends FlatSpec {
   "GlobAsFilter" should "work with simple files" in IO.withTemporaryDirectory { dir =>
@@ -11,12 +12,12 @@ class GlobAsFilterSpec extends FlatSpec {
     assert(filter.accept(dir))
     assert(!filter.accept(file))
     assert(!filter.accept(nestedFile))
-    assert(!dir.toGlob.withFilter(NothingFilter).filter(dir.toPath))
+    assert(!(Glob(dir.toPath, (0, 0), NoPass).filter(dir.toPath)))
   }
   it should "work with globs" in IO.withTemporaryDirectory { dir =>
     val file = new File(dir, "file")
     val nestedFile = new File(new File(dir, "subdir"), "subdir-file")
-    val glob = dir * AllPassFilter
+    val glob = Glob(dir.toPath, (0, 1), AllPass)
     assert(glob.toFileFilter.accept(dir))
     assert(glob.toFileFilter.accept(file))
     assert(!glob.toFileFilter.accept(nestedFile))
@@ -26,7 +27,7 @@ class GlobAsFilterSpec extends FlatSpec {
   it should "work with recursive globs" in IO.withTemporaryDirectory { dir =>
     val file = new File(dir, "file")
     val nestedFile = new File(new File(dir, "subdir"), "subdir-file")
-    val glob = dir ** AllPassFilter
+    val glob = Glob(dir.toPath, (0, Int.MaxValue), AllPass)
     assert(glob.toFileFilter.accept(dir))
     assert(glob.toFileFilter.accept(file))
     assert(glob.toFileFilter.accept(nestedFile))

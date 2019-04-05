@@ -8,7 +8,7 @@ import java.util.concurrent.{ ConcurrentHashMap, ConcurrentSkipListMap }
 import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
 import sbt.internal.io.FileTreeView._
 import sbt.io.FileAttributes.NonExistent
-import sbt.io.{ AllPassFilter, FileAttributes, Glob }
+import sbt.io.{ FileAttributes, Glob }
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -99,7 +99,7 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
       .toIndexedSeq
   }
   private[io] def register(glob: Glob): Unit = {
-    val withoutFilter = glob.withFilter(AllPassFilter)
+    val withoutFilter = Glob(glob.base, glob.range, AllPass)
     if (!globs.exists(_ covers withoutFilter) && globs.add(withoutFilter)) {
       FileAttributes(glob.base).foreach(add(withoutFilter, _))
     }
@@ -159,7 +159,8 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
 private[io] object FileCache {
   private implicit class GlobOps(val glob: Glob) extends AnyVal {
     def covers(other: Glob): Boolean = {
-      val (left, right) = (glob.withFilter(AllPassFilter), other.withFilter(AllPassFilter))
+      val left = Glob(glob.base, glob.range, AllPass)
+      val right = Glob(other.base, other.range, AllPass)
       right.base.startsWith(left.base) && {
         (left.base == right.base && left.range._2 >= right.range._2) || {
           val depth = left.base.relativize(right.base).getNameCount - 1

@@ -15,7 +15,7 @@ import scala.util.Success
 
 class WatchServiceBackedObservableSpec extends FlatSpec {
   "register" should "work recursively" in IO.withTemporaryDirectory { dir =>
-    val path = dir.toPath
+    val path = dir.getCanonicalFile.toPath
     val subdir = Files.createDirectories(path.resolve("a").resolve("b").resolve("c")).toRealPath()
     val watchState =
       new NewWatchState(ConcurrentHashMap.newKeySet[Glob].asScala,

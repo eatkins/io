@@ -98,7 +98,7 @@ private[sbt] class WatchServiceBackedObservable[T](s: NewWatchState,
             (event match {
               case Creation(path, (attrs, _)) if attrs.isDirectory =>
                 s.register(path)
-                event +: view.list(path * AllPassFilter, AllPass).flatMap {
+                event +: view.list(path * AllPassFilter, _._1 != path).flatMap {
                   case (p, a) =>
                     process(Creation(p, a))
                 }
@@ -142,9 +142,9 @@ private[sbt] class WatchServiceBackedObservable[T](s: NewWatchState,
       glob: Glob): Either[IOException, Observable[FileEvent[(FileAttributes, Try[T])]]] = {
     try {
       fileCache.register(glob)
-      fileCache.list(glob.withFilter(AllPassFilter), (a: FileAttributes, _) => a.isDirectory) foreach {
-        case (p: Path, _) =>
-          s.register(p)
+      fileCache.list(Glob(glob.base, glob.range, AllPass), (_, _) => true) foreach {
+        case (p: Path, a) if a._1.isDirectory => s.register(p)
+        case _                                =>
       }
       val observable = new Observers[FileEvent[(FileAttributes, Try[T])]] {
         override def onNext(t: FileEvent[(FileAttributes, Try[T])]): Unit = {

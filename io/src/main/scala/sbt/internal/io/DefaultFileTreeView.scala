@@ -39,18 +39,23 @@ private[sbt] object DefaultFileTreeView extends NioFileTreeView[FileAttributes] 
           val pair = path -> attributes
           if (glob.filter(path) && filter(pair)) pair :: Nil else Nil
         }
-//        (if (glob.range._1 == 0) {
-//           fileTreeView
-//             .list(glob.base, -1, (_: TypedPath) => true)
-//             .asScala
-//             .flatMap(collector)
-//             .toIndexedSeq
-//         } else Vector.empty[(NioPath, FileAttributes)]) ++
-        fileTreeView
-          .list(glob.base, glob.range.toSwovalDepth, (_: TypedPath) => true)
-          .asScala
-          .flatMap(collector)
-          .toIndexedSeq
+        (if (glob.range._1 == 0) {
+           fileTreeView
+             .list(glob.base, -1, (_: TypedPath) => true)
+             .asScala
+             .flatMap(collector)
+             .toIndexedSeq
+         } else Vector.empty[(NioPath, FileAttributes)]) ++ (if (glob.range._2 > 0)
+                                                               fileTreeView
+                                                                 .list(glob.base,
+                                                                       glob.range.toSwovalDepth,
+                                                                       (_: TypedPath) => true)
+                                                                 .asScala
+                                                                 .flatMap(collector)
+                                                                 .toIndexedSeq
+                                                             else
+                                                               Vector
+                                                                 .empty[(NioPath, FileAttributes)])
       } catch {
         case _: NoSuchFileException | _: NotDirectoryException =>
           Nil

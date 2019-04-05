@@ -29,6 +29,10 @@ private[sbt] object FileTreeView {
     override def apply(any: Any): Boolean = true
     override def toString: String = "AllPass"
   }
+  private[sbt] object NoPass extends (Any => Boolean) {
+    override def apply(any: Any): Boolean = false
+    override def toString: String = "NoPass"
+  }
   private[sbt] val DEFAULT_NIO: Nio[FileAttributes] = DefaultFileTreeView
   private[sbt] val DEFAULT_IO: Io[FileAttributes] = new MappedFileTreeView(DefaultFileTreeView, {
     case (p: NioPath, a: FileAttributes) => p.toFile -> a

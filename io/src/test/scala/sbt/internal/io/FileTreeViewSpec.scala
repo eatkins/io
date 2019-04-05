@@ -5,7 +5,7 @@ import java.nio.file._
 import org.scalatest.FlatSpec
 import sbt.internal.io.FileTreeView.AllPass
 import sbt.io.syntax._
-import sbt.io.{ AllPassFilter, IO }
+import sbt.io.{ AllPassFilter, Glob, IO }
 
 class FileTreeViewSpec extends FlatSpec {
   val view = FileTreeView.DEFAULT_IO
@@ -15,8 +15,7 @@ class FileTreeViewSpec extends FlatSpec {
   }
   "FileTreeView" should "not return the source root with depth >= 0" in IO.withTemporaryDirectory {
     dir =>
-      assert(view.list(dir.toPath * AllPassFilter, AllPass).isEmpty)
-      assert(view.list((dir.toPath * AllPassFilter).withMaxDepth(10), AllPass).isEmpty)
+      assert(view.list(Glob(dir.toPath, (1, 10), AllPass), AllPass).isEmpty)
   }
   "FileTreeView" should "get recursive files" in IO.withTemporaryDirectory { dir =>
     val subdir = Files.createDirectory(dir.toPath.resolve("subdir"))

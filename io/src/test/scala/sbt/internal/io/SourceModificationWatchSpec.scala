@@ -537,11 +537,11 @@ object EventMonitorSpec {
       EventMonitorSpec.drain(monitor, duration, events)
   }
   implicit class FileOps(val file: File) extends AnyVal {
-    def scalaSourceGlobs: Seq[Glob] =
-      Seq(
-        (file.toPath.toRealPath().toFile ** AllPassFilter)
-          .withFilter(new ExtensionFilter("scala") -- HiddenFileFilter -- new SimpleFilter(
-            _.startsWith("."))))
+    def scalaSourceGlobs: Seq[Glob] = {
+      val filter = new ExtensionFilter("scala") -- HiddenFileFilter -- new SimpleFilter(
+        _.startsWith("."))
+      Seq(file.toPath.toRealPath().toFile ** filter)
+    }
   }
   class CachingWatchLogger extends Logger {
     val lines = new scala.collection.mutable.ArrayBuffer[String]

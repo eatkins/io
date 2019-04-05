@@ -136,8 +136,11 @@ private[sbt] final class WatchState private (
   }
   private[sbt] def toNewWatchState: NewWatchState = {
     val globs = ConcurrentHashMap.newKeySet[Glob].asScala
-    globs ++= sources.map(s =>
-      Glob(s.base, (1, if (s.recursive) Int.MaxValue else 1), s.includeFilter -- s.excludeFilter))
+    globs ++= sources.map(
+      s =>
+        Glob(s.base.toPath,
+             (1, if (s.recursive) Int.MaxValue else 1),
+             path => (s.includeFilter -- s.excludeFilter).accept(path.toFile)))
     val map = new ConcurrentHashMap[Path, WatchKey]()
     map.putAll(registered.asJava)
     new NewWatchState(globs, service, map.asScala)
@@ -284,7 +287,7 @@ private[sbt] object WatchState {
           case (d, attrs) =>
             d +: (if (attrs.isDirectory)
                     DefaultFileTreeView
-                      .list(glob.withFilter(AllPassFilter), _._2.isDirectory)
+                      .list(Glob(glob.base, glob.range, AllPass), _._2.isDirectory)
                       .map(_._1)
                   else Nil)
         }
