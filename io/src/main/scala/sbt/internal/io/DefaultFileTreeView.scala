@@ -30,18 +30,26 @@ private[sbt] object DefaultFileTreeView extends NioFileTreeView[FileAttributes] 
       filter: ((NioPath, FileAttributes)) => Boolean): Seq[(NioPath, FileAttributes)] =
     Retry {
       try {
+        val collector: TypedPath => Seq[(NioPath, FileAttributes)] = typedPath => {
+          val path = typedPath.getPath
+          val attributes = FileAttributes(isDirectory = typedPath.isDirectory,
+                                          isOther = false,
+                                          isRegularFile = typedPath.isFile,
+                                          isSymbolicLink = typedPath.isSymbolicLink)
+          val pair = path -> attributes
+          if (glob.filter(path) && filter(pair)) pair :: Nil else Nil
+        }
+//        (if (glob.range._1 == 0) {
+//           fileTreeView
+//             .list(glob.base, -1, (_: TypedPath) => true)
+//             .asScala
+//             .flatMap(collector)
+//             .toIndexedSeq
+//         } else Vector.empty[(NioPath, FileAttributes)]) ++
         fileTreeView
           .list(glob.base, glob.range.toSwovalDepth, (_: TypedPath) => true)
           .asScala
-          .flatMap { typedPath =>
-            val path = typedPath.getPath
-            val attributes = FileAttributes(isDirectory = typedPath.isDirectory,
-                                            isOther = false,
-                                            isRegularFile = typedPath.isFile,
-                                            isSymbolicLink = typedPath.isSymbolicLink)
-            val pair = path -> attributes
-            if (glob.filter(path) && filter(pair)) Some(pair) else None
-          }
+          .flatMap(collector)
           .toIndexedSeq
       } catch {
         case _: NoSuchFileException | _: NotDirectoryException =>
