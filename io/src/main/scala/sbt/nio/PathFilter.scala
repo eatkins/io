@@ -36,7 +36,7 @@ private[sbt] final class AndFilter(val left: PathFilter, val right: Path => Bool
   override def hashCode: Int = this.left.hashCode ^ this.right.hashCode
   override def toString = s"$left && $right"
 }
-private[sbt] final class NotFilter(filter: Path => Boolean) extends PathFilter {
+private[sbt] final class NotFilter(val filter: Path => Boolean) extends PathFilter {
   override def apply(path: Path): Boolean = !filter(path)
   override def equals(o: Any): Boolean = o match {
     case that: NotFilter => this.filter == that.filter
@@ -84,8 +84,8 @@ final class ExtensionFilter(val extensions: String*) extends PathFilter {
 
 /** A [[PathFilter]] that only accepts a single input file. */
 final class ExactPathFilter(val path: Path) extends PathFilter {
-  override def accept(f: Path): Boolean = f == file
-  override def toString: String = s"ExactFileFilter($file)"
+  override def apply(path: Path): Boolean = path == this.path
+  override def toString: String = s"ExactPathFilter($path)"
   override def equals(o: Any): Boolean = o match {
     case that: ExactPathFilter => this.path == that.path
     case _                     => false

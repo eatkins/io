@@ -1,12 +1,11 @@
-package sbt.io
+package sbt.nio
 
 import java.nio.file.Files
 
 import org.scalatest.FlatSpec
 import sbt.internal.io.FileTreeView.AllPass
-import sbt.nio.Glob.ExactPathFilter
 import sbt.io.syntax._
-import sbt.nio.{ Glob, ToGlob }
+import sbt.io.{ AllPassFilter, IO, NothingFilter, PathFinder }
 
 object GlobPathFinderSpec {
   implicit class PathFinderOps[P](val p: P)(implicit f: P => PathFinder) {
