@@ -21,7 +21,7 @@ private[nio] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
   import FileCache._
   private[this] val files =
     Collections.synchronizedSortedMap(new ConcurrentSkipListMap[Path, (FileAttributes, Try[T])])
-  private[this] val view: NioFileTreeView[(FileAttributes, Try[T])] =
+  private[this] val view: FileTreeView.Nio[(FileAttributes, Try[T])] =
     FileTreeView.DEFAULT_NIO.map((p: Path, a: FileAttributes) => a -> converter(p, a))
   private[nio] def update(
       path: Path,
@@ -33,7 +33,7 @@ private[nio] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
         val exists = attributes != NonExistent
         subMap.get(path) match {
           case null if exists =>
-            add(Glob(path, (0, maxDepthForPath(path)), (_: Path) => true), attributes)
+            add(Glob(path, (0, maxDepthForPath(path)), AllPass), attributes)
             subMap.asScala.map { case (p, a) => Creation(p, a) }.toIndexedSeq
           case null => Nil // we weren't monitoring this no longer extant path
           case prev if exists =>
@@ -86,16 +86,10 @@ private[nio] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
       Nil
     }
   }
-  private[nio] def list(
-      glob: Glob,
-      filter: (FileAttributes, Try[T]) => Boolean): Seq[(Path, (FileAttributes, Try[T]))] = {
+  private[nio] def list(glob: Glob): Seq[(Path, (FileAttributes, Try[T]))] = {
     files
       .subMap(glob.base, ceiling(glob.base))
       .asScala
-      .filter {
-        case (p, (a, v)) =>
-          glob.filter(p) && filter(a, v)
-      }
       .toIndexedSeq
   }
   private[nio] def register(glob: Glob): Unit = {
@@ -126,7 +120,7 @@ private[nio] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
       val asScala = newFiles.asScala
       asScala += (glob.base -> (fileAttributes -> converter(glob.base, fileAttributes)))
       if (fileAttributes.isDirectory)
-        newFiles.asScala ++= view.list(glob, AllPass)
+        newFiles.asScala ++= view.list(glob)
       files.putAll(newFiles)
     }
   }

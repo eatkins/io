@@ -88,8 +88,7 @@ private[sbt] class FileTreeRepositoryImpl[T](converter: (NioPath, FileAttributes
     throwIfClosed("addObserver")
     observers.addObserver(observer)
   }
-  override def list(glob: Glob, filter: ((NioPath, (FileAttributes, Try[T]))) => Boolean)
-    : Seq[(NioPath, (FileAttributes, Try[T]))] = {
+  override def list(glob: Glob): Seq[(NioPath, (FileAttributes, Try[T]))] = {
     throwIfClosed("list")
     val res = new VectorBuilder[(NioPath, (FileAttributes, Try[T]))]
     underlying
@@ -100,10 +99,8 @@ private[sbt] class FileTreeRepositoryImpl[T](converter: (NioPath, FileAttributes
         val tp = e.getTypedPath
         val path = tp.getPath
         e.getValue.asScala match {
-          case Right(t: (FileAttributes, Try[T]) @unchecked) =>
-            val pair = path -> t
-            if (filter(pair)) res += pair
-          case _ =>
+          case Right(t: (FileAttributes, Try[T]) @unchecked) => res += path -> t
+          case _                                             =>
         }
       }
     res.result

@@ -141,7 +141,7 @@ private[sbt] final class WatchState private (
       s =>
         Glob(s.base.toPath,
              (1, if (s.recursive) Int.MaxValue else 1),
-             (path: Path) => (s.includeFilter -- s.excludeFilter).accept(path.toFile)))
+             s.includeFilter -- s.excludeFilter))
     val map = new ConcurrentHashMap[Path, WatchKey]()
     map.putAll(registered.asJava)
     new NewWatchState(globs, service, map.asScala)
@@ -284,13 +284,12 @@ private[sbt] object WatchState {
     globSet ++= globs
     val initFiles = globs.flatMap {
       case glob if glob.range._2 == Int.MaxValue =>
-        DefaultFileTreeView.list(glob.base.toGlob, AllPass).flatMap {
+        DefaultFileTreeView.list(glob.base.toGlob).flatMap {
           case (d, attrs) =>
             d +: (if (attrs.isDirectory)
                     DefaultFileTreeView
-                      .list(Glob(glob.base, glob.range, AllPass), _._2.isDirectory)
-                      .map(_._1)
-                  else Nil)
+                      .list(Glob(glob.base, glob.range, AllPass))
+                      .collect { case (p, a) if a.isDirectory => p } else Nil)
         }
       case glob => Seq(glob.base)
     }.sorted

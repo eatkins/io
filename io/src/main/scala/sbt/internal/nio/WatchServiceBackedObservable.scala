@@ -100,7 +100,7 @@ private[sbt] class WatchServiceBackedObservable[T](s: NewWatchState,
             (event match {
               case Creation(path, (attrs, _)) if attrs.isDirectory =>
                 s.register(path)
-                event +: view.list(path * AllPassFilter, _._1 != path).flatMap {
+                event +: view.list(Glob(path, (1, Int.MaxValue), AllPass)).flatMap {
                   case (p, a) =>
                     process(Creation(p, a))
                 }
@@ -144,7 +144,7 @@ private[sbt] class WatchServiceBackedObservable[T](s: NewWatchState,
       glob: Glob): Either[IOException, Observable[FileEvent[(FileAttributes, Try[T])]]] = {
     try {
       fileCache.register(glob)
-      fileCache.list(Glob(glob.base, glob.range, AllPass), (_, _) => true) foreach {
+      fileCache.list(Glob(glob.base, glob.range, AllPass)) foreach {
         case (p: Path, a) if a._1.isDirectory => s.register(p)
         case _                                =>
       }

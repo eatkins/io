@@ -8,7 +8,7 @@ import org.scalatest.{ FlatSpec, Matchers }
 import sbt.internal.nio.FileEvent.{ Creation, Deletion }
 import sbt.io.syntax._
 import sbt.io.{ AllPassFilter, IO }
-import sbt.nio.{ AllPass, FileAttributes, Glob }
+import sbt.nio.{ FileAttributes, Glob }
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
@@ -17,9 +17,7 @@ import scala.util.{ Success, Try }
 object FileTreeRepositorySpec {
   implicit class FileRepositoryOps[T](val fileCache: FileTreeRepository[(FileAttributes, Try[T])])
       extends AnyVal {
-    def ls(glob: Glob,
-           filter: (NioPath, (FileAttributes, Try[T])) => Boolean = (_, _) => true): Seq[NioPath] =
-      fileCache.list(glob, filter).map(_._1)
+    def ls(glob: Glob): Seq[NioPath] = fileCache.list(glob).map(_._1)
   }
   implicit class CountdownLatchOps(val latch: CountDownLatch) extends AnyVal {
     def await(duration: Duration): Boolean = latch.await(duration.toNanos, TimeUnit.NANOSECONDS)
@@ -211,13 +209,13 @@ class FileTreeRepositorySpec extends FlatSpec with Matchers {
           latch.countDown()
       }
       c.register(file.getParent ** AllPassFilter)
-      val Seq(fileEntry) = c.list(file.getParent ** AllPassFilter, AllPass)
+      val Seq(fileEntry) = c.list(file.getParent ** AllPassFilter)
       val lastModified = fileEntry._2._2
       lastModified.map((_: LastModified).at) shouldBe Success(
         Files.getLastModifiedTime(file).toMillis)
       Files.setLastModifiedTime(file, FileTime.fromMillis(updatedLastModified))
       assert(latch.await(DEFAULT_TIMEOUT))
-      val Seq(newFileEntry) = c.list(file.getParent ** AllPassFilter, AllPass)
+      val Seq(newFileEntry) = c.list(file.getParent ** AllPassFilter)
       newFileEntry._2._2.map(_.at) shouldBe Success(updatedLastModified)
     }
   }

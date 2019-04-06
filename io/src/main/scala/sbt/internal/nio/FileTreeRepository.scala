@@ -15,7 +15,7 @@ import java.nio.file.{ Path => NioPath }
 
 import sbt.internal.nio.FileEvent.{ Creation, Deletion, Update }
 import sbt.io.WatchService
-import sbt.nio.{ AllPass, FileAttributes, Glob }
+import sbt.nio.{ FileAttributes, FileTreeView, Glob }
 
 import scala.util.Try
 
@@ -30,7 +30,7 @@ import scala.util.Try
  * @tparam T the type of the
  */
 private[sbt] trait FileTreeRepository[+T]
-    extends NioFileTreeView[T]
+    extends FileTreeView.Nio[T]
     with Registerable[FileEvent[T]]
     with Observable[FileEvent[T]]
     with AutoCloseable
@@ -52,11 +52,7 @@ private[sbt] object FileTreeRepository {
             .map((o: Observable[FileEvent[T]]) => Observable.map(o, (_: FileEvent[T]).map(f)))
         override def addObserver(observer: Observer[FileEvent[U]]): AutoCloseable =
           observers.addObserver(observer)
-        override def list(glob: Glob, filter: ((NioPath, U)) => Boolean): Seq[(NioPath, U)] =
-          repo.list(glob, AllPass).flatMap {
-            case (p, t) =>
-              Some(p -> f(t)).filter(filter)
-          }
+        override def list(glob: Glob): Seq[(NioPath, U)] = repo.map(f, false).list(glob)
         override def close(): Unit = {
           handle.close()
           if (closeUnderlying) repo.close()

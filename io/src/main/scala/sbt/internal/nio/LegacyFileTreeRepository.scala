@@ -33,7 +33,7 @@ private[sbt] class LegacyFileTreeRepository[T](converter: (Path, FileAttributes)
                                                logger: WatchLogger,
                                                watchService: WatchService)
     extends FileTreeRepository[(FileAttributes, Try[T])] {
-  private[this] val view: NioFileTreeView[(FileAttributes, Try[T])] =
+  private[this] val view: FileTreeView.Nio[(FileAttributes, Try[T])] =
     FileTreeView.DEFAULT_NIO.map((p: Path, a: FileAttributes) => a -> converter(p, a))
   private[this] val globs = ConcurrentHashMap.newKeySet[Glob].asScala
   private[this] val fileCache = new FileCache(converter, globs)
@@ -67,9 +67,8 @@ private[sbt] class LegacyFileTreeRepository[T](converter: (Path, FileAttributes)
     observable.register(glob).right.foreach(_.close())
     new RegisterableObservable(observers).register(glob)
   }
-  override def list(glob: Glob, filter: ((Path, (FileAttributes, Try[T]))) => Boolean)
-    : Seq[(Path, (FileAttributes, Try[T]))] =
-    view.list(glob, filter)
+  override def list(glob: Glob): Seq[(Path, (FileAttributes, Try[T]))] =
+    view.list(glob)
 
   /**
    * Add callbacks to be invoked on file events.
