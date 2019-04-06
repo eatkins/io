@@ -561,7 +561,7 @@ object IO {
     } catch {
       case _: NotDirectoryException =>
     }
-    file.delete()
+    Files.deleteIfExists(file.toPath)
     ()
   }
 

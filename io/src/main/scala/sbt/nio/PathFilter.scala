@@ -37,6 +37,19 @@ trait PathNameFilter extends PathFilter {
   /** Constructs a filter that accepts a `Path` if it matches both this filter and the given `filter`. */
   def &(filter: PathNameFilter): PathNameFilter = new AndNameFilter(this, filter)
 }
+private[nio] object PathNameFilter {
+  private[nio] implicit class WrappedPathFilter(private val pathFilter: PathFilter)
+      extends PathNameFilter {
+    override def apply(name: String): Boolean = false
+    override def apply(path: Path): Boolean = pathFilter(path)
+    override def equals(o: Any): Boolean = o match {
+      case that: WrappedPathFilter => this.pathFilter == that.pathFilter
+      case _                       => false
+    }
+    override def hashCode: Int = pathFilter.hashCode
+    override def toString: String = pathFilter.toString
+  }
+}
 
 private[nio] abstract class AbstractAndFilter[T <: PathFilter](val left: T,
                                                                val right: T,

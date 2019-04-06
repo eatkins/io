@@ -15,6 +15,7 @@ import java.nio.file._
 
 import sbt.io
 import sbt.io._
+import sbt.nio.PathNameFilter.WrappedPathFilter
 
 /**
  * Represents a filtered subtree of the file system.
@@ -105,7 +106,8 @@ object Glob {
      *
      * @return the filter.
      */
-    override def filter: PathNameFilter = path => rf(path) & nameFilter(path)
+    override def filter: PathNameFilter =
+      new WrappedPathFilter((path: Path) => rf(path) && nameFilter(path))
   }
   private[sbt] trait Builder[T] extends Any with GlobBuilder[Glob] with ToGlob {
     def repr: T
