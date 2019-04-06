@@ -17,7 +17,7 @@ trait FileTreeView[+T] extends AutoCloseable {
    * @param glob the files to include
    * @return a sequence of values corresponding to each path described by the glob
    */
-  def list(glob: Glob, filter: T => Boolean): Seq[T]
+  def list(glob: Glob): Seq[T]
 
   // Many, if not most, FileTreeViews should not create new resources.
   override def close(): Unit = {}
@@ -33,12 +33,7 @@ private[sbt] object FileTreeView {
                                            converter: T => R,
                                            closeUnderlying: Boolean)
       extends FileTreeView[R] {
-    override def list(glob: Glob, filter: R => Boolean): Seq[R] = {
-      view.list(glob, AllPass).flatMap { t =>
-        val r: R = converter(t)
-        if (filter(r)) r :: Nil else Nil
-      }
-    }
+    override def list(glob: Glob): Seq[R] = view.list(glob).map(converter)
     override def close(): Unit = if (closeUnderlying) view.close()
   }
   private[sbt] implicit class NioFileTreeViewOps[T](val view: FileTreeView.Nio[T]) {
