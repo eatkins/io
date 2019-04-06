@@ -3,7 +3,10 @@ package sbt.io
 import java.nio.file.Files
 
 import org.scalatest.FlatSpec
+import sbt.internal.io.FileTreeView.AllPass
+import sbt.nio.Glob.ExactPathFilter
 import sbt.io.syntax._
+import sbt.nio.{ Glob, ToGlob }
 
 object GlobPathFinderSpec {
   implicit class PathFinderOps[P](val p: P)(implicit f: P => PathFinder) {
@@ -51,13 +54,13 @@ class GlobPathFinderSpec extends FlatSpec {
   it should "return an empty list for directories that do not exists" in {
     assert((file("/tmp/this/is/not/a/file") * AllPassFilter).get == Nil)
   }
-//  it should "implicitly build a glob" in IO.withTemporaryDirectory { dir =>
-//    // These use the FileBuilder extension class for file.
-//    assert((dir: ToGlob).toGlob == Glob(dir.toPath, (0, 0), new ExactFileFilter(dir)))
-//    assert(dir.toGlob == Glob(dir, (0, 0), new ExactFileFilter(dir)))
-//    assert(dir * AllPassFilter == Glob(dir, (0, 1), AllPassFilter))
-//    assert((dir glob AllPassFilter) == Glob(dir, (0, 1), AllPassFilter))
-//    assert(dir ** AllPassFilter == Glob(dir, (0, Int.MaxValue), AllPassFilter))
-//    assert((dir globRecursive AllPassFilter) == Glob(dir, (0, Int.MaxValue), AllPassFilter))
-//  }
+  it should "implicitly build a glob" in IO.withTemporaryDirectory { dir =>
+    // These use the FileBuilder extension class for file.
+    assert((dir: ToGlob).toGlob == Glob(dir.toPath, (0, 0), new ExactPathFilter(dir.toPath)))
+    assert(dir.toGlob == Glob(dir.toPath, (0, 0), new ExactPathFilter(dir.toPath)))
+    assert(dir * AllPassFilter == Glob(dir.toPath, (0, 1), AllPass))
+    assert((dir glob AllPassFilter) == Glob(dir.toPath, (0, 1), AllPass))
+    assert(dir ** AllPassFilter == Glob(dir.toPath, (0, Int.MaxValue), AllPass))
+    assert((dir globRecursive AllPassFilter) == Glob(dir.toPath, (0, Int.MaxValue), AllPass))
+  }
 }

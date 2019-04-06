@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
 import sbt.internal.io.FileEvent.Deletion
 import sbt.io.FileAttributes.NonExistent
 import sbt.io._
+import sbt.nio.Glob
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._

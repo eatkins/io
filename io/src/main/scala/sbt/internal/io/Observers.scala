@@ -15,7 +15,7 @@ import java.nio.file.{ Path => NioPath }
 import java.util
 import java.util.concurrent.atomic.AtomicInteger
 
-import sbt.io.Glob
+import sbt.nio.Glob
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable

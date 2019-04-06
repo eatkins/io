@@ -23,6 +23,7 @@ import sbt.internal.io.ErrorHandling.translate
 import sbt.internal.io.{ FileTreeView, Milli, Retry }
 import sbt.internal.io.FileTreeView.AllPass
 import sbt.io.Using._
+import sbt.nio.Glob
 
 import scala.Function.tupled
 import scala.annotation.tailrec

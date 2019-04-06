@@ -4,6 +4,7 @@ import java.io.File
 
 import org.scalatest.FlatSpec
 import sbt.internal.io.FileTreeView.AllPass
+import sbt.nio.Glob
 import syntax._
 
 class GlobOrderingSpec extends FlatSpec {

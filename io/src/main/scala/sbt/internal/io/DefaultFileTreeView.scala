@@ -15,6 +15,7 @@ import java.nio.file.{ NoSuchFileException, NotDirectoryException, Path => NioPa
 import com.swoval.files.{ FileTreeViews, TypedPath }
 import sbt.internal.io.SwovalConverters._
 import sbt.io._
+import sbt.nio.Glob
 
 import scala.collection.JavaConverters._
 

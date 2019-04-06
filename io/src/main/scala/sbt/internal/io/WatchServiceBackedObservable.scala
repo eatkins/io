@@ -20,6 +20,7 @@ import sbt.internal.io.FileEvent.{ Creation, Deletion }
 import sbt.internal.io.FileTreeView._
 import sbt.io._
 import sbt.io.syntax._
+import sbt.nio.Glob
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._

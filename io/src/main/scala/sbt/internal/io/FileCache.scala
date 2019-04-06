@@ -8,7 +8,8 @@ import java.util.concurrent.{ ConcurrentHashMap, ConcurrentSkipListMap }
 import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
 import sbt.internal.io.FileTreeView._
 import sbt.io.FileAttributes.NonExistent
-import sbt.io.{ FileAttributes, Glob }
+import sbt.io.FileAttributes
+import sbt.nio.Glob
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable

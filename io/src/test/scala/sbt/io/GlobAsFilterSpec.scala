@@ -3,6 +3,7 @@ package sbt.io
 import org.scalatest.FlatSpec
 import sbt.internal.io.FileTreeView.{ AllPass, NoPass }
 import sbt.io.syntax._
+import sbt.nio.Glob
 
 class GlobAsFilterSpec extends FlatSpec {
   "GlobAsFilter" should "work with simple files" in IO.withTemporaryDirectory { dir =>

@@ -8,7 +8,8 @@ import org.scalatest.{ FlatSpec, Matchers }
 import sbt.internal.io.FileEvent.{ Creation, Deletion }
 import sbt.internal.io.FileTreeView.AllPass
 import sbt.io.syntax._
-import sbt.io.{ AllPassFilter, FileAttributes, Glob, IO }
+import sbt.io.{ AllPassFilter, FileAttributes, IO }
+import sbt.nio.Glob
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._

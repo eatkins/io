@@ -8,6 +8,7 @@ import sbt.internal.io.EventMonitorSpec._
 import sbt.internal.io.FileEvent.Deletion
 import sbt.io.syntax._
 import sbt.io.{ WatchService, _ }
+import sbt.nio.Glob
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.{ Deadline => _, _ }

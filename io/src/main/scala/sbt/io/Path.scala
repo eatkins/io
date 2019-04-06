@@ -27,6 +27,7 @@ import com.swoval.files.FileTreeViews
 import com.swoval.functional.Filter
 import sbt.internal.io.FileTreeView
 import sbt.internal.io.FileTreeView.AllPass
+import sbt.nio.Glob
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -413,7 +414,7 @@ object PathFinder {
       override def absString(): String = Path.makeString(new SingleFile(file).get())
     }
   }
-  private[io] final class GlobPathFinder(val glob: Glob) extends PathFinder {
+  private[sbt] final class GlobPathFinder(val glob: Glob) extends PathFinder {
     override def get(): Seq[File] = {
       if (glob.range._1 == 0 && glob.range._2 == 0) {
         glob.base.toFile :: Nil

@@ -2,7 +2,8 @@ package sbt.internal.io
 
 import java.nio.file.{ Path => NioPath }
 
-import sbt.io.{ FileAttributes, Glob }
+import sbt.io.FileAttributes
+import sbt.nio.Glob
 
 /**
  * Provides a view into the file system that allows retrieval of the children of a particular path.

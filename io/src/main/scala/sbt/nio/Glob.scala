@@ -8,12 +8,14 @@
  * (http://www.apache.org/licenses/LICENSE-2.0).
  */
 
-package sbt.io
+package sbt.nio
 
 import java.io.File
 import java.nio.file.{ Path => NioPath }
 
+import sbt.internal.io.FileTreeView.{ AllPass, NoPass }
 import sbt.io
+import sbt.io._
 
 /**
  * Represents a filtered subtree of the file system.
@@ -57,7 +59,7 @@ private[sbt] sealed trait ToGlob extends Any {
   def toGlob: Glob
 }
 object Glob {
-  private[this] implicit class ConvertedFileFilter(val f: FileFilter) extends (NioPath => Boolean) {
+  private[this] class ConvertedFileFilter(val f: FileFilter) extends (NioPath => Boolean) {
     override def apply(path: NioPath): Boolean = f.accept(path.toFile)
     override def equals(o: Any): Boolean = o match {
       case that: ConvertedFileFilter => this.f == that.f
@@ -66,11 +68,21 @@ object Glob {
     override def hashCode: Int = f.hashCode
     override def toString: String = s"ConvertedFileFilter($f)"
   }
+  private[this] object ConvertedFileFilter {
+    def apply(fileFilter: FileFilter): NioPath => Boolean = fileFilter match {
+      case AllPassFilter       => AllPass
+      case NothingFilter       => NoPass
+      case ef: ExactFileFilter => new ExactPathFilter(ef.file.toPath)
+      case filter              => new ConvertedFileFilter(filter)
+    }
+  }
   private implicit class PathOps(val p: NioPath) extends AnyVal {
     def abs: NioPath = if (p.isAbsolute) p else p.toAbsolutePath
   }
   def apply(base: NioPath, range: (Int, Int), filter: NioPath => Boolean): Glob =
     new GlobImpl(base.abs, range, filter)
+  private[sbt] def apply(base: NioPath, range: (Int, Int), filter: FileFilter): Glob =
+    new GlobImpl(base.abs, range, ConvertedFileFilter(filter))
   private class GlobImpl(val base: NioPath,
                          val range: (Int, Int),
                          val pathFilter: NioPath => Boolean)
@@ -97,12 +109,14 @@ object Glob {
     def converter: T => NioPath
     def /(component: String): Glob = {
       val base = converter(repr).resolve(component)
-      Glob(base, (0, 0), path => path.abs == base)
+      Glob(base, (0, 0), (path: NioPath) => path.abs == base)
     }
     def \(component: String): Glob = this / component
-    def glob(filter: FileFilter): Glob = Glob(converter(repr), (0, 1), filter)
+    def glob(filter: FileFilter): Glob =
+      Glob(converter(repr), (0, 1), ConvertedFileFilter(filter))
     def *(filter: FileFilter): Glob = glob(filter)
-    def globRecursive(filter: FileFilter): Glob = Glob(converter(repr), (0, Int.MaxValue), filter)
+    def globRecursive(filter: FileFilter): Glob =
+      Glob(converter(repr), (0, Int.MaxValue), ConvertedFileFilter(filter))
     def allPaths: Glob = globRecursive(AllPassFilter)
     def **(filter: FileFilter): Glob = globRecursive(filter)
     def toGlob: Glob = {
@@ -133,7 +147,7 @@ object Glob {
     }
   }
 
-  private class ExactPathFilter(val path: NioPath) extends (NioPath => Boolean) {
+  private[sbt] class ExactPathFilter(val path: NioPath) extends (NioPath => Boolean) {
     override def apply(other: NioPath): Boolean = other == path
     override def equals(o: Any): Boolean = o match {
       case that: ExactPathFilter => this.path == that.path

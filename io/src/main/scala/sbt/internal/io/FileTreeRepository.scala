@@ -15,7 +15,8 @@ import java.nio.file.{ Path => NioPath }
 
 import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
 import sbt.internal.io.FileTreeView.AllPass
-import sbt.io.{ FileAttributes, Glob, WatchService }
+import sbt.io.{ FileAttributes, WatchService }
+import sbt.nio.Glob
 
 import scala.util.Try
 

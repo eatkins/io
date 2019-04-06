@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import sbt.internal.io.FileTreeView._
 import sbt.io._
 import sbt.io.syntax._
+import sbt.nio.Glob
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
@@ -140,7 +141,7 @@ private[sbt] final class WatchState private (
       s =>
         Glob(s.base.toPath,
              (1, if (s.recursive) Int.MaxValue else 1),
-             path => (s.includeFilter -- s.excludeFilter).accept(path.toFile)))
+             (path: Path) => (s.includeFilter -- s.excludeFilter).accept(path.toFile)))
     val map = new ConcurrentHashMap[Path, WatchKey]()
     map.putAll(registered.asJava)
     new NewWatchState(globs, service, map.asScala)

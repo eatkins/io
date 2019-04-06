@@ -8,6 +8,7 @@ import java.util.concurrent.{ ConcurrentHashMap, CountDownLatch, TimeUnit }
 import org.scalatest.FlatSpec
 import sbt.io._
 import sbt.io.syntax._
+import sbt.nio.Glob
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._

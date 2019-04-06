@@ -20,6 +20,7 @@ import com.swoval.functional.Filters
 import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
 import sbt.internal.io.SwovalConverters._
 import sbt.io._
+import sbt.nio.Glob
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.VectorBuilder
