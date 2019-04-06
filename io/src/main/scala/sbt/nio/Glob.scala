@@ -43,7 +43,7 @@ sealed trait Glob {
    * The filter to apply to elements found in the file system subtree.
    * @return the filter.
    */
-  def filter: PathNameFilter
+  def filter: PathFilter
 
 }
 private[sbt] sealed trait GlobBuilder[G] extends Any {
@@ -70,7 +70,7 @@ object Glob {
     override def toString: String = s"ConvertedFileFilter($f)"
   }
   private[this] object ConvertedFileFilter {
-    def apply(fileFilter: FileFilter): PathNameFilter = fileFilter match {
+    def apply(fileFilter: FileFilter): PathFilter = fileFilter match {
       case AllPassFilter              => AllPass
       case NothingFilter              => NoPass
       case af: sbt.io.AndFilter       => new ConvertedFileFilter(af)
@@ -78,15 +78,16 @@ object Glob {
       case nf: sbt.io.NotFilter       => new NotFilter(apply(nf.fileFilter))
       case ef: sbt.io.ExtensionFilter => new ExtensionFilter(ef.extensions: _*)
       case ef: ExactFileFilter        => new ExactPathNameFilter(ef.file.toPath)
-      //case sf: SimpleFilter           => PathFilter(p => sf.accept(sf))
-      case filter => new ConvertedFileFilter(filter)
+      case filter                     => new ConvertedFileFilter(filter)
     }
   }
   private implicit class PathOps(val p: Path) extends AnyVal {
     def abs: Path = if (p.isAbsolute) p else p.toAbsolutePath
   }
-  def apply(base: Path, range: (Int, Int), filter: PathNameFilter): Glob =
+  private[sbt] def apply(base: Path, range: (Int, Int), filter: PathFilter): Glob =
     new GlobImpl(base.abs, range, filter)
+  def apply(base: Path, range: (Int, Int), filter: PathNameFilter): Glob =
+    new GlobImpl(base.abs, range, filter: PathFilter)
   private[sbt] def apply(base: Path, range: (Int, Int), filter: FileFilter): Glob =
     new GlobImpl(base.abs, range, ConvertedFileFilter(filter))
   private[nio] class GlobImpl(val base: Path, val range: (Int, Int), val nameFilter: PathNameFilter)
@@ -114,7 +115,7 @@ object Glob {
     def converter: T => Path
     def /(component: String): Glob = {
       val base = converter(repr).resolve(component)
-      Glob(base, (0, 0), (_: String) == component)
+      Glob(base, (0, 0), (_: Path).getFileName.toString == component)
     }
     def \(component: String): Glob = this / component
     def glob(filter: FileFilter): Glob =

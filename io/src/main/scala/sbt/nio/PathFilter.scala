@@ -2,7 +2,7 @@ package sbt.nio
 
 import java.nio.file._
 
-private[nio] trait PathFilter {
+trait PathFilter {
   def apply(path: Path): Boolean
 
   /** Constructs a filter that accepts a `Path` if it matches either this filter or the given `filter`. */
