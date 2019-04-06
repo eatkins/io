@@ -19,7 +19,7 @@ import sbt.io._
 /**
  * Represents a filtered subtree of the file system.
  */
-trait Glob {
+sealed trait Glob {
 
   /**
    * The root of the file system subtree.
@@ -42,7 +42,7 @@ trait Glob {
    * The filter to apply to elements found in the file system subtree.
    * @return the filter.
    */
-  def filter: Path => Boolean
+  def filter: PathNameFilter
 
 }
 private[sbt] sealed trait GlobBuilder[G] extends Any {
@@ -58,8 +58,9 @@ private[sbt] sealed trait ToGlob extends Any {
   def toGlob: Glob
 }
 object Glob {
-  private[this] class ConvertedFileFilter(val f: FileFilter) extends (Path => Boolean) {
+  private[this] class ConvertedFileFilter(val f: FileFilter) extends PathNameFilter {
     override def apply(path: Path): Boolean = f.accept(path.toFile)
+    override def apply(name: String): Boolean = false
     override def equals(o: Any): Boolean = o match {
       case that: ConvertedFileFilter => this.f == that.f
       case _                         => false
@@ -68,33 +69,33 @@ object Glob {
     override def toString: String = s"ConvertedFileFilter($f)"
   }
   private[this] object ConvertedFileFilter {
-    def apply(fileFilter: FileFilter): Path => Boolean = fileFilter match {
+    def apply(fileFilter: FileFilter): PathNameFilter = fileFilter match {
       case AllPassFilter              => AllPass
       case NothingFilter              => NoPass
       case af: sbt.io.AndFilter       => new ConvertedFileFilter(af)
-      case of: sbt.io.OrFilter        => new OrFilter(apply(of.left), apply(of.right))
+      case of: sbt.io.OrFilter        => new OrNameFilter(apply(of.left), apply(of.right))
       case nf: sbt.io.NotFilter       => new NotFilter(apply(nf.fileFilter))
       case ef: sbt.io.ExtensionFilter => new ExtensionFilter(ef.extensions: _*)
-      case ef: ExactFileFilter        => new ExactPathFilter(ef.file.toPath)
-      case sf: SimpleFilter           => PathFilter.default(p => sf.accept(p.toFile))
-      case filter                     => new ConvertedFileFilter(filter)
+      case ef: ExactFileFilter        => new ExactPathNameFilter(ef.file.toPath)
+      //case sf: SimpleFilter           => PathFilter(p => sf.accept(sf))
+      case filter => new ConvertedFileFilter(filter)
     }
   }
   private implicit class PathOps(val p: Path) extends AnyVal {
     def abs: Path = if (p.isAbsolute) p else p.toAbsolutePath
   }
-  def apply(base: Path, range: (Int, Int), filter: Path => Boolean): Glob =
+  def apply(base: Path, range: (Int, Int), filter: PathNameFilter): Glob =
     new GlobImpl(base.abs, range, filter)
   private[sbt] def apply(base: Path, range: (Int, Int), filter: FileFilter): Glob =
     new GlobImpl(base.abs, range, ConvertedFileFilter(filter))
-  private class GlobImpl(val base: Path, val range: (Int, Int), val pathFilter: Path => Boolean)
+  private[nio] class GlobImpl(val base: Path, val range: (Int, Int), val nameFilter: PathNameFilter)
       extends Glob {
     private[this] val rf = new RangeFilter(base.abs, range)
     override def toString: String =
-      s"Glob(\n  base = $base,\n  filter = $rf && $pathFilter,\n  depth = $range\n)"
+      s"Glob(\n  base = $base,\n  filter = $rf && $nameFilter,\n  depth = $range\n)"
     override def equals(o: Any): Boolean = o match {
       case that: GlobImpl =>
-        this.base == that.base && this.range == that.range && this.pathFilter == that.pathFilter
+        this.base == that.base && this.range == that.range && this.nameFilter == that.nameFilter
       case _ => false
     }
     override def hashCode: Int = (((base.hashCode * 31) ^ filter.hashCode) * 31) ^ range.hashCode
@@ -104,14 +105,14 @@ object Glob {
      *
      * @return the filter.
      */
-    override def filter: Path => Boolean = path => rf(path) && pathFilter(path)
+    override def filter: PathNameFilter = path => rf(path) & nameFilter(path)
   }
   private[sbt] trait Builder[T] extends Any with GlobBuilder[Glob] with ToGlob {
     def repr: T
     def converter: T => Path
     def /(component: String): Glob = {
       val base = converter(repr).resolve(component)
-      Glob(base, (0, 0), (path: Path) => path.abs == base)
+      Glob(base, (0, 0), (_: String) == component)
     }
     def \(component: String): Glob = this / component
     def glob(filter: FileFilter): Glob =
@@ -123,7 +124,7 @@ object Glob {
     def **(filter: FileFilter): Glob = globRecursive(filter)
     def toGlob: Glob = {
       val base = converter(repr)
-      Glob(base, (0, 0), new ExactPathFilter(base))
+      Glob(base, (0, 0), new ExactPathNameFilter(base))
     }
   }
   private[sbt] final class FileBuilder(val file: File) extends AnyVal with Builder[File] {
@@ -149,7 +150,8 @@ object Glob {
     }
   }
 
-  private class RangeFilter(val base: Path, val range: (Int, Int)) extends (Path => Boolean) {
+  private class RangeFilter(val base: Path, val range: (Int, Int)) extends PathNameFilter {
+    override def apply(name: String): Boolean = false
     override def apply(path: Path): Boolean = {
       val globPath = base
       if (path.startsWith(globPath)) {
