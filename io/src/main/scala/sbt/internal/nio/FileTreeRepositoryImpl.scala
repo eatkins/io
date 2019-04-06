@@ -8,7 +8,7 @@
  * (http://www.apache.org/licenses/LICENSE-2.0).
  */
 
-package sbt.internal.io
+package sbt.internal.nio
 
 import java.io.IOException
 import java.nio.file.{ Path => NioPath }
@@ -17,10 +17,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import com.swoval.files.FileTreeDataViews.CacheObserver
 import com.swoval.files.{ FileTreeDataViews, FileTreeRepositories, TypedPath => STypedPath }
 import com.swoval.functional.Filters
-import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
-import sbt.internal.io.SwovalConverters._
-import sbt.io._
-import sbt.nio.Glob
+import sbt.internal.nio.FileEvent.{ Creation, Deletion, Update }
+import sbt.internal.nio.SwovalConverters._
+import sbt.nio.{ FileAttributes, Glob }
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.VectorBuilder

@@ -1,22 +1,21 @@
-package sbt.internal.io
+package sbt.internal.nio
 
 import java.nio.file.{ Path, Paths }
 import java.util
 import java.util.Collections
 import java.util.concurrent.{ ConcurrentHashMap, ConcurrentSkipListMap }
 
-import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
-import sbt.internal.io.FileTreeView._
-import sbt.io.FileAttributes.NonExistent
-import sbt.io.FileAttributes
-import sbt.nio.Glob
+import sbt.internal.nio.FileEvent.{ Creation, Deletion, Update }
+import sbt.nio.FileAttributes.NonExistent
+import sbt.nio.FileTreeView._
+import sbt.nio.{ AllPass, FileAttributes, FileTreeView, Glob }
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.util.Try
 
-private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
-                                globs: mutable.Set[Glob]) {
+private[nio] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
+                                 globs: mutable.Set[Glob]) {
   def this(converter: (Path, FileAttributes) => Try[T]) =
     this(converter, ConcurrentHashMap.newKeySet[Glob].asScala)
   import FileCache._
@@ -24,7 +23,7 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
     Collections.synchronizedSortedMap(new ConcurrentSkipListMap[Path, (FileAttributes, Try[T])])
   private[this] val view: NioFileTreeView[(FileAttributes, Try[T])] =
     FileTreeView.DEFAULT_NIO.map((p: Path, a: FileAttributes) => a -> converter(p, a))
-  private[io] def update(
+  private[nio] def update(
       path: Path,
       attributes: FileAttributes,
   ): Seq[FileEvent[(FileAttributes, Try[T])]] = {
@@ -47,7 +46,7 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
       Nil
     }
   }
-  private[io] def refresh(glob: Glob): Seq[FileEvent[(FileAttributes, Try[T])]] = {
+  private[nio] def refresh(glob: Glob): Seq[FileEvent[(FileAttributes, Try[T])]] = {
     val path = glob.base
     if (globInclude(path)) {
       val subMap = files.subMap(path, ceiling(path))
@@ -87,7 +86,7 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
       Nil
     }
   }
-  private[io] def list(
+  private[nio] def list(
       glob: Glob,
       filter: (FileAttributes, Try[T]) => Boolean): Seq[(Path, (FileAttributes, Try[T]))] = {
     files
@@ -99,13 +98,13 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
       }
       .toIndexedSeq
   }
-  private[io] def register(glob: Glob): Unit = {
+  private[nio] def register(glob: Glob): Unit = {
     val withoutFilter = Glob(glob.base, glob.range, AllPass)
     if (!globs.exists(_ covers withoutFilter) && globs.add(withoutFilter)) {
       FileAttributes(glob.base).foreach(add(withoutFilter, _))
     }
   }
-  private[io] def unregister(glob: Glob): Unit = {
+  private[nio] def unregister(glob: Glob): Unit = {
     if (globs.remove(glob)) {
       files.synchronized {
         val subMap = files.subMap(glob.base, ceiling(glob.base))
@@ -157,7 +156,7 @@ private[io] class FileCache[+T](converter: (Path, FileAttributes) => Try[T],
   // This is a mildly hacky way of specifying an upper bound for children of a path
   private[this] def ceiling(path: Path): Path = Paths.get(path.toString + Char.MaxValue)
 }
-private[io] object FileCache {
+private[nio] object FileCache {
   private implicit class GlobOps(val glob: Glob) extends AnyVal {
     def covers(other: Glob): Boolean = {
       val left = Glob(glob.base, glob.range, AllPass)

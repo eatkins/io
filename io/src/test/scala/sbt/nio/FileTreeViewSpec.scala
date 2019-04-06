@@ -1,12 +1,10 @@
-package sbt.internal.io
+package sbt.nio
 
 import java.nio.file._
 
 import org.scalatest.FlatSpec
-import sbt.internal.io.FileTreeView.AllPass
 import sbt.io.syntax._
 import sbt.io.{ AllPassFilter, IO }
-import sbt.nio.Glob
 
 class FileTreeViewSpec extends FlatSpec {
   val view = FileTreeView.DEFAULT_IO

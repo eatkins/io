@@ -8,12 +8,12 @@
  * (http://www.apache.org/licenses/LICENSE-2.0).
  */
 
-package sbt.internal.io
+package sbt.internal.nio
 
 import java.nio.file.{ Path => JPath }
 import java.util.concurrent.{ ArrayBlockingQueue, ConcurrentHashMap, TimeUnit }
 
-import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
+import sbt.internal.nio.FileEvent.{ Creation, Deletion, Update }
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._

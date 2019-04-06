@@ -8,7 +8,7 @@
  * (http://www.apache.org/licenses/LICENSE-2.0).
  */
 
-package sbt.internal.io
+package sbt.internal.nio
 
 import java.io.IOException
 import java.nio.file.StandardWatchEventKinds.OVERFLOW
@@ -16,11 +16,12 @@ import java.nio.file.{ Path, WatchKey }
 import java.util.concurrent.atomic.{ AtomicBoolean, AtomicInteger }
 import java.util.concurrent.{ CountDownLatch, TimeUnit }
 
-import sbt.internal.io.FileEvent.{ Creation, Deletion }
-import sbt.internal.io.FileTreeView._
+import sbt.internal.nio.FileEvent.{ Creation, Deletion }
+import sbt.internal.io._
 import sbt.io._
 import sbt.io.syntax._
-import sbt.nio.Glob
+import sbt.nio.FileTreeView._
+import sbt.nio.{ AllPass, FileAttributes, FileTreeView, Glob }
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
@@ -31,7 +32,6 @@ import scala.util.control.NonFatal
 private[sbt] object WatchServiceBackedObservable {
   private val eventThreadId = new AtomicInteger(0)
 }
-import sbt.internal.io.WatchServiceBackedObservable._
 private[sbt] class WatchServiceBackedObservable[T](s: NewWatchState,
                                                    delay: FiniteDuration,
                                                    converter: (Path, FileAttributes) => Try[T],
@@ -39,6 +39,7 @@ private[sbt] class WatchServiceBackedObservable[T](s: NewWatchState,
                                                    logger: WatchLogger)
     extends Registerable[FileEvent[(FileAttributes, Try[T])]]
     with Observable[FileEvent[(FileAttributes, Try[T])]] {
+  import WatchServiceBackedObservable.eventThreadId
   private[this] type Event[A] = FileEvent[(FileAttributes, Try[T])]
   private[this] val closed = new AtomicBoolean(false)
   private[this] val observers = new Observers[FileEvent[(FileAttributes, Try[T])]]

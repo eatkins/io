@@ -92,3 +92,12 @@ final class ExactPathFilter(val path: Path) extends PathFilter {
   }
   override def hashCode: Int = path.hashCode
 }
+
+object AllPass extends (Any => Boolean) {
+  override def apply(any: Any): Boolean = true
+  override def toString: String = "AllPass"
+}
+object NoPass extends (Any => Boolean) {
+  override def apply(any: Any): Boolean = false
+  override def toString: String = "NoPass"
+}

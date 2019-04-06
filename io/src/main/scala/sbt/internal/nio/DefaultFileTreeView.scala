@@ -8,14 +8,14 @@
  * (http://www.apache.org/licenses/LICENSE-2.0).
  */
 
-package sbt.internal.io
+package sbt.internal.nio
 
 import java.nio.file.{ NoSuchFileException, NotDirectoryException, Path => NioPath }
 
 import com.swoval.files.{ FileTreeViews, TypedPath }
-import sbt.internal.io.SwovalConverters._
-import sbt.io._
-import sbt.nio.Glob
+import sbt.internal.io.Retry
+import sbt.internal.nio.SwovalConverters._
+import sbt.nio.{ FileAttributes, Glob }
 
 import scala.collection.JavaConverters._
 

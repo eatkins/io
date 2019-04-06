@@ -3,7 +3,6 @@ package sbt.nio
 import java.nio.file.Files
 
 import org.scalatest.FlatSpec
-import sbt.internal.io.FileTreeView.AllPass
 import sbt.io.syntax._
 import sbt.io.{ AllPassFilter, IO, NothingFilter, PathFinder }
 

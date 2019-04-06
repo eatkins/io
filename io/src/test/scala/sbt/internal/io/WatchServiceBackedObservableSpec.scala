@@ -6,9 +6,10 @@ import java.nio.file.{ Files, Path, WatchKey }
 import java.util.concurrent.{ ConcurrentHashMap, CountDownLatch, TimeUnit }
 
 import org.scalatest.FlatSpec
+import sbt.internal.nio.WatchServiceBackedObservable
 import sbt.io._
 import sbt.io.syntax._
-import sbt.nio.Glob
+import sbt.nio.{ FileAttributes, Glob }
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._

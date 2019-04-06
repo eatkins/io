@@ -1,9 +1,8 @@
-package sbt.io
+package sbt.nio
 
 import org.scalatest.FlatSpec
-import sbt.internal.io.FileTreeView.{ AllPass, NoPass }
+import sbt.io.{ IO, NothingFilter }
 import sbt.io.syntax._
-import sbt.nio.Glob
 
 class GlobAsFilterSpec extends FlatSpec {
   "GlobAsFilter" should "work with simple files" in IO.withTemporaryDirectory { dir =>
@@ -13,7 +12,7 @@ class GlobAsFilterSpec extends FlatSpec {
     assert(filter.accept(dir))
     assert(!filter.accept(file))
     assert(!filter.accept(nestedFile))
-    assert(!(Glob(dir.toPath, (0, 0), NoPass).filter(dir.toPath)))
+    assert(!Glob(dir.toPath, (0, 0), NoPass).filter(dir.toPath))
   }
   it should "work with globs" in IO.withTemporaryDirectory { dir =>
     val file = new File(dir, "file")

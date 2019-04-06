@@ -8,7 +8,7 @@
  * (http://www.apache.org/licenses/LICENSE-2.0).
  */
 
-package sbt.internal.io
+package sbt.internal.nio
 
 import java.io.IOException
 import java.nio.file.{ Path => NioPath }
@@ -31,7 +31,7 @@ private[sbt] trait Observer[-T] extends AutoCloseable {
 
   /**
    * This is for managed observers that may need to be removed once the caller is done with them.
-   * See [[sbt.internal.io.Observers]].
+   * See [[Observers]].
    */
   override def close(): Unit = {}
 }

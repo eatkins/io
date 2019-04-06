@@ -5,13 +5,24 @@ import java.nio.file.{ ClosedWatchServiceException, Files, Path, Paths }
 
 import org.scalatest.{ FlatSpec, Matchers }
 import sbt.internal.io.EventMonitorSpec._
-import sbt.internal.io.FileEvent.Deletion
+import sbt.internal.nio.FileEvent.Deletion
+import sbt.internal.nio.{
+  FileEvent,
+  FileEventMonitor,
+  FileTreeRepository,
+  Observable,
+  Observer,
+  Observers,
+  Registerable,
+  WatchLogger,
+  WatchServiceBackedObservable
+}
 import sbt.io.syntax._
 import sbt.io.{ WatchService, _ }
-import sbt.nio.Glob
+import sbt.nio.{ FileAttributes, Glob }
 
 import scala.annotation.tailrec
-import scala.concurrent.duration.{ Deadline => _, _ }
+import scala.concurrent.duration._
 import scala.util.{ Success, Try }
 
 private[sbt] trait EventMonitorSpec { self: FlatSpec with Matchers =>
@@ -467,7 +478,7 @@ private[sbt] trait EventMonitorSpec { self: FlatSpec with Matchers =>
     if (attempt == 0) IO.write(file, content)
     // IO.setModifiedTimeOrFalse sometimes throws an invalid argument exception
     val res = try {
-      IO.setModifiedTimeOrFalse(file, (Deadline.now - 5.seconds).value.toMillis)
+      IO.setModifiedTimeOrFalse(file, (Deadline.now - 5.seconds).time.toMillis)
     } catch { case _: IOException if attempt < 10 => false }
     if (!res) writeNewFile(file, content, attempt + 1)
   }

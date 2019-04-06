@@ -1,15 +1,14 @@
-package sbt.internal.io
+package sbt.internal.nio
 
 import java.nio.file.attribute.FileTime
 import java.nio.file.{ Files, Path => NioPath, Paths => NioPaths }
 import java.util.concurrent.{ ConcurrentHashMap, CountDownLatch, TimeUnit }
 
 import org.scalatest.{ FlatSpec, Matchers }
-import sbt.internal.io.FileEvent.{ Creation, Deletion }
-import sbt.internal.io.FileTreeView.AllPass
+import sbt.internal.nio.FileEvent.{ Creation, Deletion }
 import sbt.io.syntax._
-import sbt.io.{ AllPassFilter, FileAttributes, IO }
-import sbt.nio.Glob
+import sbt.io.{ AllPassFilter, IO }
+import sbt.nio.{ AllPass, FileAttributes, Glob }
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._

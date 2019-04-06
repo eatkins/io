@@ -8,16 +8,17 @@
  * (http://www.apache.org/licenses/LICENSE-2.0).
  */
 
-package sbt.internal.io
+package sbt.internal.nio
 
 import java.io.IOException
 import java.nio.file.{ Path, WatchKey }
 import java.util.concurrent.ConcurrentHashMap
 
-import sbt.internal.io.FileEvent.Deletion
-import sbt.io.FileAttributes.NonExistent
+import sbt.internal.io._
+import sbt.internal.nio.FileEvent.Deletion
 import sbt.io._
-import sbt.nio.Glob
+import sbt.nio.FileAttributes.NonExistent
+import sbt.nio.{ FileAttributes, FileTreeView, Glob }
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._

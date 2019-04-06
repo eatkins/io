@@ -8,23 +8,16 @@
  * (http://www.apache.org/licenses/LICENSE-2.0).
  */
 
-package sbt.internal.io
+package sbt.internal.nio
 
 import java.io.IOException
 import java.nio.file.{ Path => NioPath }
 
-import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
-import sbt.internal.io.FileTreeView.AllPass
-import sbt.io.{ FileAttributes, WatchService }
-import sbt.nio.Glob
+import sbt.internal.nio.FileEvent.{ Creation, Deletion, Update }
+import sbt.io.WatchService
+import sbt.nio.{ AllPass, FileAttributes, Glob }
 
 import scala.util.Try
-
-private[sbt] trait NioFileTreeView[+T] extends FileTreeView[(NioPath, T)] {
-  def list(glob: Glob, filter: ((NioPath, T)) => Boolean): Seq[(NioPath, T)]
-  final def list(glob: Glob, filter: (NioPath, T) => Boolean): Seq[(NioPath, T)] =
-    list(glob, filter.tupled)
-}
 
 /**
  * Monitors registered directories for file changes. A typical implementation will keep an

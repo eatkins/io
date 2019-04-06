@@ -25,9 +25,7 @@ import java.nio.file.{
 
 import com.swoval.files.FileTreeViews
 import com.swoval.functional.Filter
-import sbt.internal.io.FileTreeView
-import sbt.internal.io.FileTreeView.AllPass
-import sbt.nio.Glob
+import sbt.nio.{ AllPass, FileAttributes, FileTreeView, Glob }
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable

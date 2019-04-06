@@ -1,11 +1,10 @@
-package sbt.io
+package sbt.nio
 
 import java.io.File
 
 import org.scalatest.FlatSpec
-import sbt.internal.io.FileTreeView.AllPass
-import sbt.nio.Glob
-import syntax._
+import sbt.io.IO
+import sbt.io.syntax._
 
 class GlobOrderingSpec extends FlatSpec {
   "Globs" should "be ordered" in IO.withTemporaryDirectory { dir =>

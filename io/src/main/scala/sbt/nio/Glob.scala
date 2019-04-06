@@ -13,7 +13,6 @@ package sbt.nio
 import java.io.File
 import java.nio.file._
 
-import sbt.internal.io.FileTreeView.{ AllPass, NoPass }
 import sbt.io
 import sbt.io._
 

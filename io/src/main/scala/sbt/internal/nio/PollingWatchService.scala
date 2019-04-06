@@ -8,7 +8,7 @@
  * (http://www.apache.org/licenses/LICENSE-2.0).
  */
 
-package sbt.internal.io
+package sbt.internal.nio
 
 import java.nio.file.StandardWatchEventKinds._
 import java.nio.file.{ WatchService => _, _ }
@@ -17,9 +17,10 @@ import java.util.concurrent._
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.{ List => JList }
 
-import sbt.internal.io.FileEvent.{ Creation, Deletion, Update }
+import sbt.internal.nio.FileEvent.{ Creation, Deletion, Update }
 import sbt.io._
 import sbt.io.syntax._
+import sbt.nio.FileAttributes
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._

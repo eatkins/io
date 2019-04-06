@@ -16,10 +16,10 @@ import java.nio.file.{ WatchService => _, _ }
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
-import sbt.internal.io.FileTreeView._
+import sbt.internal.nio._
 import sbt.io._
 import sbt.io.syntax._
-import sbt.nio.Glob
+import sbt.nio.{ AllPass, FileAttributes, Glob }
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._

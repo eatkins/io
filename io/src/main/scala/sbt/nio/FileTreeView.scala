@@ -1,9 +1,8 @@
-package sbt.internal.io
+package sbt.nio
 
 import java.nio.file.{ Path => NioPath }
 
-import sbt.io.FileAttributes
-import sbt.nio.Glob
+import sbt.internal.nio.{ DefaultFileTreeView, NioFileTreeView }
 
 /**
  * Provides a view into the file system that allows retrieval of the children of a particular path.
@@ -26,14 +25,6 @@ trait FileTreeView[+T] extends AutoCloseable {
 private[sbt] object FileTreeView {
   private[sbt] type Nio[T] = FileTreeView[(NioPath, T)]
   private[sbt] type Io[T] = FileTreeView[(java.io.File, T)]
-  private[sbt] object AllPass extends (Any => Boolean) {
-    override def apply(any: Any): Boolean = true
-    override def toString: String = "AllPass"
-  }
-  private[sbt] object NoPass extends (Any => Boolean) {
-    override def apply(any: Any): Boolean = false
-    override def toString: String = "NoPass"
-  }
   private[sbt] val DEFAULT_NIO: Nio[FileAttributes] = DefaultFileTreeView
   private[sbt] val DEFAULT_IO: Io[FileAttributes] = new MappedFileTreeView(DefaultFileTreeView, {
     case (p: NioPath, a: FileAttributes) => p.toFile -> a

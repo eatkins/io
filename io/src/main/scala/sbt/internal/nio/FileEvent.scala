@@ -8,7 +8,7 @@
  * (http://www.apache.org/licenses/LICENSE-2.0).
  */
 
-package sbt.internal.io
+package sbt.internal.nio
 
 import java.nio.file.{ Path => NioPath }
 
