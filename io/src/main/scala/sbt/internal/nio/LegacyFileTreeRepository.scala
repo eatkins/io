@@ -29,12 +29,9 @@ import scala.util.Try
  * will always poll the file system and the monitoring will be handled by a
  * [[WatchServiceBackedObservable]].
  */
-private[sbt] class LegacyFileTreeRepository[T](converter: (Path, FileAttributes) => Try[T],
-                                               logger: WatchLogger,
-                                               watchService: WatchService)
-    extends FileTreeRepository[(FileAttributes, Try[T])] {
-  private[this] val view: FileTreeView.Nio[(FileAttributes, Try[T])] =
-    FileTreeView.DEFAULT_NIO.map((p: Path, a: FileAttributes) => a -> converter(p, a))
+private[sbt] class LegacyFileTreeRepository(logger: WatchLogger, watchService: WatchService)
+    extends FileTreeRepository[FileAttributes] {
+  private[this] val view: FileTreeView.Nio[FileAttributes] = FileTreeView.DEFAULT_NIO
   private[this] val globs = ConcurrentHashMap.newKeySet[Glob].asScala
   private[this] val fileCache = new FileCache(converter, globs)
   private[this] val observable: Observable[FileEvent[(FileAttributes, Try[T])]]
@@ -67,8 +64,7 @@ private[sbt] class LegacyFileTreeRepository[T](converter: (Path, FileAttributes)
     observable.register(glob).right.foreach(_.close())
     new RegisterableObservable(observers).register(glob)
   }
-  override def list(glob: Glob): Seq[(Path, (FileAttributes, Try[T]))] =
-    view.list(glob)
+  override def list(glob: Glob): Seq[(Path, FileAttributes)] = view.list(glob)
 
   /**
    * Add callbacks to be invoked on file events.

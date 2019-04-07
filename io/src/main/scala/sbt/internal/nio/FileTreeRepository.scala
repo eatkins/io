@@ -64,14 +64,9 @@ private[sbt] object FileTreeRepository {
    * Create a [[FileTreeRepository]]. The generated repository will cache the file system tree for the
    * monitored directories.
    *
-   * @param converter function to generate an instance of `T` from a
-   *                  `(Path, BasicFileAttributes)` pair
-   * @tparam T the generic type of the data value associated with each file
    * @return a file repository.
    */
-  private[sbt] def default[T: Manifest](converter: (NioPath, FileAttributes) => Try[T])
-    : FileTreeRepository[(FileAttributes, Try[T])] =
-    new FileTreeRepositoryImpl[T](converter)
+  private[sbt] def default: FileTreeRepository[FileAttributes] = new FileTreeRepositoryImpl
 
   /**
    * Create a [[FileTreeRepository]]. The generated repository will cache the file system tree for the
