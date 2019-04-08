@@ -12,10 +12,9 @@ import sbt.nio.{ FileAttributes, Glob }
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
-import scala.util.{ Success, Try }
 
 object FileTreeRepositorySpec {
-  implicit class FileRepositoryOps[T](val fileCache: FileTreeRepository[(FileAttributes, Try[T])])
+  implicit class FileRepositoryOps[T](val fileCache: FileTreeRepository[FileAttributes])
       extends AnyVal {
     def ls(glob: Glob): Seq[NioPath] = fileCache.list(glob).map(_._1)
   }
@@ -45,13 +44,13 @@ object FileTreeRepositorySpec {
     }
   }
   def withTempFile[R](f: NioPath => R): R = withTempDir(withTempFile(_)(f))
-  def simpleCache(f: NioPath => Unit): FileTreeRepository[(FileAttributes, Try[Unit])] =
-    simpleCache(new Observer[FileEvent[(FileAttributes, Try[Unit])]] {
-      override def onNext(t: FileEvent[(FileAttributes, Try[Unit])]): Unit = f(t.path)
+  def simpleCache(f: NioPath => Unit): FileTreeRepository[FileAttributes] =
+    simpleCache(new Observer[FileEvent[FileAttributes]] {
+      override def onNext(t: FileEvent[FileAttributes]): Unit = f(t.path)
     })
-  def simpleCache(observer: Observer[FileEvent[(FileAttributes, Try[Unit])]])
-    : FileTreeRepository[(FileAttributes, Try[Unit])] = {
-    val underlying = new FileTreeRepositoryImpl((_: NioPath, _: FileAttributes) => Success(()))
+  def simpleCache(
+      observer: Observer[FileEvent[FileAttributes]]): FileTreeRepository[FileAttributes] = {
+    val underlying = new FileTreeRepositoryImpl()
     underlying.addObserver(observer)
     underlying
   }
@@ -90,8 +89,8 @@ class FileTreeRepositorySpec extends FlatSpec with Matchers {
     val latch = new CountDownLatch(1)
     val initial = Files.createTempFile(dir, "move", "")
     val moved = NioPaths.get(s"${initial.toString}.moved")
-    val observer: Observer[FileEvent[(FileAttributes, Try[Unit])]] =
-      (_: FileEvent[(FileAttributes, Try[Unit])]) match {
+    val observer: Observer[FileEvent[FileAttributes]] =
+      (_: FileEvent[FileAttributes]) match {
         case Creation(path, _) => if (path == moved) latch.countDown()
         case _                 =>
       }
@@ -164,8 +163,8 @@ class FileTreeRepositorySpec extends FlatSpec with Matchers {
       creationLatches.put(f, creationLatch)
       deletionLatches.put(f, deletionLatch)
     }
-    val observer: Observer[FileEvent[(FileAttributes, Try[Unit])]] =
-      (_: FileEvent[(FileAttributes, Try[Unit])]) match {
+    val observer: Observer[FileEvent[FileAttributes]] =
+      (_: FileEvent[FileAttributes]) match {
         case Creation(p, _) => creationLatches.remove(p).foreach(_.countDown())
         case Deletion(p, _) => deletionLatches.remove(p).foreach(_.countDown())
         case _              =>
@@ -198,25 +197,22 @@ class FileTreeRepositorySpec extends FlatSpec with Matchers {
 
   "updates" should "be detected" in withTempFile { file =>
     val latch = new CountDownLatch(1)
-    val updatedLastModified = 2000L
-    using(FileTreeRepository.default[LastModified] {
-      case (p: NioPath, a: FileAttributes) =>
-        Try(LastModified(Files.getLastModifiedTime(p).toMillis))
-    }) { c =>
+    val updatedLastModified = LastModified(2000L)
+    using(FileTreeRepository.default.map((p: NioPath, _: FileAttributes) => {
+      LastModified(Files.getLastModifiedTime(p).toMillis)
+    }, closeUnderlying = true)) { c =>
       c.addObserver { event =>
-        val attributes = event.attributes
-        if (event.exists && attributes._2.map(_.at) == Success(updatedLastModified))
-          latch.countDown()
+        val lastModified = event.attributes
+        if (event.exists && lastModified == updatedLastModified) latch.countDown()
       }
       c.register(file.getParent ** AllPassFilter)
       val Seq(fileEntry) = c.list(file.getParent ** AllPassFilter)
-      val lastModified = fileEntry._2._2
-      lastModified.map((_: LastModified).at) shouldBe Success(
-        Files.getLastModifiedTime(file).toMillis)
-      Files.setLastModifiedTime(file, FileTime.fromMillis(updatedLastModified))
+      val lastModified = fileEntry._2
+      lastModified shouldBe LastModified(Files.getLastModifiedTime(file).toMillis)
+      Files.setLastModifiedTime(file, FileTime.fromMillis(updatedLastModified.at))
       assert(latch.await(DEFAULT_TIMEOUT))
       val Seq(newFileEntry) = c.list(file.getParent ** AllPassFilter)
-      newFileEntry._2._2.map(_.at) shouldBe Success(updatedLastModified)
+      newFileEntry._2 shouldBe updatedLastModified
     }
   }
   private def withThread[R](name: String)(body: => Unit)(f: => R): Unit = {

@@ -20,6 +20,7 @@ import sbt.internal.io._
 import sbt.internal.nio.FileEvent.{ Creation, Deletion }
 import sbt.io._
 import sbt.io.syntax._
+import sbt.nio.FileAttributes.NonExistent
 import sbt.nio.{ AllPass, FileAttributes, FileTreeView, Glob }
 
 import scala.annotation.tailrec
@@ -40,7 +41,7 @@ private[sbt] class WatchServiceBackedObservable(s: NewWatchState,
   private[this] type Event = FileEvent[FileAttributes]
   private[this] val closed = new AtomicBoolean(false)
   private[this] val observers = new Observers[FileEvent[FileAttributes]]
-  private[this] val fileCache = new FileCache()
+  private[this] val fileCache = new FileCache(p => FileAttributes(p).getOrElse(NonExistent))
   private[this] val view: FileTreeView.Nio[FileAttributes] = FileTreeView.DEFAULT_NIO
   private[this] val thread: Thread = {
     val latch = new CountDownLatch(1)

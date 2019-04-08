@@ -612,8 +612,8 @@ class FileTreeRepositoryEventMonitorSpec extends RepoEventMonitorSpec {
 
 class LegacyFileTreeRepositoryEventMonitorSpec extends RepoEventMonitorSpec {
   override def pollDelay: FiniteDuration = 100.millis
-  override private[sbt] def factory(): FileTreeRepository[(FileAttributes, Try[Unit])] =
-    FileTreeRepository.legacy[Unit](f)
+  override private[sbt] def factory(): FileTreeRepository[FileAttributes] =
+    FileTreeRepository.legacy
 }
 
 private[sbt] abstract class SourceModificationWatchSpec(
@@ -644,12 +644,8 @@ private[sbt] abstract class SourceModificationWatchSpec(
 
   override def newObservable(globs: Seq[Glob], logger: Logger): Observable[Event] = {
     val watchState = WatchState.empty(globs, getService)
-    val observable = new WatchServiceBackedObservable[Unit](
-      watchState,
-      5.millis,
-      converter = (_: Path, _: FileAttributes) => Success(()),
-      closeService = true,
-      logger = logger)
+    val observable =
+      new WatchServiceBackedObservable(watchState, 5.millis, closeService = true, logger = logger)
     observable.register(globs)
   }
 }

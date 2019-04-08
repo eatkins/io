@@ -25,7 +25,6 @@ import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.{ immutable, mutable }
 import scala.concurrent.duration._
-import scala.util.{ Success, Try }
 
 private[sbt] object SourceModificationWatch {
 
@@ -40,15 +39,14 @@ private[sbt] object SourceModificationWatch {
     if (state.count == 0) {
       (true, state.withCount(1))
     } else {
-      val observable: Observable[FileEvent[(FileAttributes, Try[Unit])]] =
-        new WatchServiceBackedObservable[Unit](
+      val observable: Observable[FileEvent[FileAttributes]] =
+        new WatchServiceBackedObservable(
           state.toNewWatchState,
           delay,
-          (_: Path, _: FileAttributes) => Success(()),
           closeService = false,
           NullWatchLogger
         )
-      val monitor: FileEventMonitor[FileEvent[(FileAttributes, Try[Unit])]] =
+      val monitor: FileEventMonitor[FileEvent[FileAttributes]] =
         FileEventMonitor.antiEntropy(observable,
                                      200.milliseconds,
                                      NullWatchLogger,
