@@ -13,8 +13,7 @@ package sbt.nio
 import java.io.File
 import java.nio.file._
 
-import sbt.io
-import sbt.io._
+import sbt.io.{ ExactFileFilter, FileFilter, PathFinder, SimpleFileFilter }
 import sbt.nio.PathNameFilter.WrappedPathFilter
 
 /**
@@ -71,10 +70,10 @@ object Glob {
   }
   private[this] object ConvertedFileFilter {
     def apply(fileFilter: FileFilter): PathFilter = fileFilter match {
-      case AllPassFilter              => AllPass
-      case NothingFilter              => NoPass
-      case af: sbt.io.AndFilter       => new ConvertedFileFilter(af)
-      case of: sbt.io.OrFilter        => new OrNameFilter(apply(of.left), apply(of.right))
+      case sbt.io.AllPassFilter       => AllPass
+      case sbt.io.NothingFilter       => NoPass
+      case af: sbt.io.AndFilter       => new AndFilter(apply(af.left), apply(af.right))
+      case of: sbt.io.OrFilter        => new OrFilter(apply(of.left), apply(of.right))
       case nf: sbt.io.NotFilter       => new NotFilter(apply(nf.fileFilter))
       case ef: sbt.io.ExtensionFilter => new ExtensionFilter(ef.extensions: _*)
       case ef: ExactFileFilter        => new ExactPathNameFilter(ef.file.toPath)
@@ -123,7 +122,7 @@ object Glob {
     def *(filter: FileFilter): Glob = glob(filter)
     def globRecursive(filter: FileFilter): Glob =
       Glob(converter(repr), (0, Int.MaxValue), ConvertedFileFilter(filter))
-    def allPaths: Glob = globRecursive(AllPassFilter)
+    def allPaths: Glob = globRecursive(sbt.io.AllPassFilter)
     def **(filter: FileFilter): Glob = globRecursive(filter)
     def toGlob: Glob = {
       val base = converter(repr)
@@ -142,7 +141,7 @@ object Glob {
     private[sbt] def toFileFilter: sbt.io.FileFilter =
       new SimpleFileFilter(file => glob.filter(file.toPath))
   }
-  implicit def toPathFinder(glob: Glob): PathFinder = new io.PathFinder.GlobPathFinder(glob)
+  implicit def toPathFinder(glob: Glob): PathFinder = new PathFinder.GlobPathFinder(glob)
   implicit object ordering extends Ordering[Glob] {
     override def compare(left: Glob, right: Glob): Int = left.base.compareTo(right.base) match {
       // We want greater depth to come first because when we are using a Seq[Glob] to
