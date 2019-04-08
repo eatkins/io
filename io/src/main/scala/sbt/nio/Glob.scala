@@ -12,9 +12,13 @@ package sbt.nio
 
 import java.io.File
 import java.nio.file._
+import java.util
 
 import sbt.io.{ ExactFileFilter, FileFilter, PathFinder, SimpleFileFilter }
 import sbt.nio.PathNameFilter.WrappedPathFilter
+
+import scala.annotation.tailrec
+import scala.collection.immutable.VectorBuilder
 
 /**
  * Represents a filtered subtree of the file system.
@@ -83,6 +87,7 @@ object Glob {
   private implicit class PathOps(val p: Path) extends AnyVal {
     def abs: Path = if (p.isAbsolute) p else p.toAbsolutePath
   }
+  def apply(base: Path): Glob = new GlobImpl(base.abs, (0, 0), new ExactPathNameFilter(base))
   def apply(base: Path, range: (Int, Int), filter: PathFilter): Glob =
     new GlobImpl(base.abs, range, filter)
   private[sbt] def apply(base: Path, range: (Int, Int), filter: FileFilter): Glob =
@@ -141,13 +146,58 @@ object Glob {
   }
   implicit def toPathFinder(glob: Glob): PathFinder = new PathFinder.GlobPathFinder(glob)
   implicit object ordering extends Ordering[Glob] {
-    override def compare(left: Glob, right: Glob): Int = left.base.compareTo(right.base) match {
+    override def compare(left: Glob, right: Glob): Int = right.base.compareTo(left.base) match {
       // We want greater depth to come first because when we are using a Seq[Glob] to
       // register with the file system cache, it is more efficient to register the broadest glob
       // first so that we don't have to list the base directory multiple times.
       case 0 => right.range._2.compareTo(left.range._2)
       case i => i
     }
+  }
+  private[sbt] def all(globs: Traversable[Glob],
+                       view: FileTreeView.Nio[FileAttributes],
+                       filter: (Path, FileAttributes) => Boolean): Seq[(Path, FileAttributes)] = {
+    val sorted = globs.toSeq.sorted
+    def maxDepthFor(path: Path): Int =
+      sorted
+        .collect {
+          case g if path.startsWith(g.base) =>
+            if (path == g.base) 0 else g.base.relativize(path).getNameCount
+        }
+        .foldLeft(-1) { case (a, d) => if (d > a) d else a }
+    val visited = new util.HashSet[Path]
+    val totalFilter: (Path, FileAttributes) => Boolean = {
+      val pathFilter = (path: Path) => sorted.exists(_.filter(path))
+      (path, attributes) =>
+        pathFilter(path) && filter(path, attributes)
+    }
+    val result = new VectorBuilder[(Path, FileAttributes)]
+    val maybeAdd: ((Path, FileAttributes)) => Unit = {
+      case pair @ (path, attributes) =>
+        if (totalFilter(path, attributes)) result += pair
+    }
+    sorted.foreach { glob =>
+      val queue = new util.LinkedList[Path]
+      queue.add(glob.base)
+      @tailrec
+      def impl(): Unit = {
+        queue.poll match {
+          case null =>
+          case path if !visited.contains(path) =>
+            visited.add(path)
+            view.list(Glob(path, (1, 1), AllPass)) foreach {
+              case pair @ (path, attributes) if attributes.isDirectory =>
+                if (maxDepthFor(path) >= 0) queue.add(path)
+                maybeAdd(pair)
+              case pair => maybeAdd(pair)
+            }
+            impl()
+          case _ =>
+        }
+      }
+      impl()
+    }
+    result.result()
   }
 
   private class RangeFilter(val base: Path, val range: (Int, Int)) extends PathNameFilter {
