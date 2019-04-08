@@ -83,10 +83,8 @@ object Glob {
   private implicit class PathOps(val p: Path) extends AnyVal {
     def abs: Path = if (p.isAbsolute) p else p.toAbsolutePath
   }
-  private[sbt] def apply(base: Path, range: (Int, Int), filter: PathFilter): Glob =
+  def apply(base: Path, range: (Int, Int), filter: PathFilter): Glob =
     new GlobImpl(base.abs, range, filter)
-  def apply(base: Path, range: (Int, Int), filter: PathNameFilter): Glob =
-    new GlobImpl(base.abs, range, filter: PathFilter)
   private[sbt] def apply(base: Path, range: (Int, Int), filter: FileFilter): Glob =
     new GlobImpl(base.abs, range, ConvertedFileFilter(filter))
   private[nio] class GlobImpl(val base: Path, val range: (Int, Int), val nameFilter: PathNameFilter)
