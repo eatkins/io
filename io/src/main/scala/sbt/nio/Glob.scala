@@ -155,16 +155,14 @@ object Glob {
     }
   }
   private[sbt] def all(globs: Traversable[Glob],
+                       view: FileTreeView.Nio[FileAttributes]): Seq[(Path, FileAttributes)] =
+    all(globs, view, (_, _) => true)
+  private[sbt] def all(globs: Traversable[Glob],
                        view: FileTreeView.Nio[FileAttributes],
                        filter: (Path, FileAttributes) => Boolean): Seq[(Path, FileAttributes)] = {
     val sorted = globs.toSeq.sorted
-    def maxDepthFor(path: Path): Int =
-      sorted
-        .collect {
-          case g if path.startsWith(g.base) =>
-            if (path == g.base) 0 else g.base.relativize(path).getNameCount
-        }
-        .foldLeft(-1) { case (a, d) => if (d > a) d else a }
+    val simpleGlobs = sorted.map(g => Glob(g.base, g.range, AllPass))
+    def accept(path: Path): Boolean = simpleGlobs.exists(_.filter(path.resolve("a")))
     val visited = new util.HashSet[Path]
     val totalFilter: (Path, FileAttributes) => Boolean = {
       val pathFilter = (path: Path) => sorted.exists(_.filter(path))
@@ -186,8 +184,8 @@ object Glob {
           case path if !visited.contains(path) =>
             visited.add(path)
             view.list(Glob(path, (1, 1), AllPass)) foreach {
-              case pair @ (path, attributes) if attributes.isDirectory =>
-                if (maxDepthFor(path) >= 0) queue.add(path)
+              case pair @ (p, attributes) if attributes.isDirectory =>
+                if (accept(p)) queue.add(p)
                 maybeAdd(pair)
               case pair => maybeAdd(pair)
             }
