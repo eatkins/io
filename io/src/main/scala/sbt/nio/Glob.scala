@@ -161,7 +161,7 @@ object Glob {
                        view: FileTreeView.Nio[FileAttributes],
                        filter: (Path, FileAttributes) => Boolean): Seq[(Path, FileAttributes)] = {
     val sorted = globs.toSeq.sorted
-    val simpleGlobs = sorted.map(g => Glob(g.base, g.range, AllPass))
+    val simpleGlobs = sorted.map(g => Glob(g.base, (0, g.range._2), AllPass))
     def accept(path: Path): Boolean = simpleGlobs.exists(_.filter(path.resolve("a")))
     val visited = new util.HashSet[Path]
     val totalFilter: (Path, FileAttributes) => Boolean = {
