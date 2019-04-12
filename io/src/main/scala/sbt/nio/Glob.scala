@@ -183,15 +183,12 @@ object Glob {
           case null =>
           case path if !visited.contains(path) =>
             visited.add(path)
-            val now = System.nanoTime
             view.list(Glob(path, (1, 1), AllPass)) foreach {
               case pair @ (p, attributes) if attributes.isDirectory =>
                 if (needListDirectory(p)) queue.add(p)
                 maybeAdd(pair)
               case pair => maybeAdd(pair)
             }
-            val elapsed = System.nanoTime - now
-            println(s"Took ${elapsed / 1.0e6} ms to visit $path")
             impl()
           case _ =>
         }
