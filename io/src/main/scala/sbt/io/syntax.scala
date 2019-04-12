@@ -11,7 +11,6 @@
 package sbt.io
 
 import java.io.File
-import java.nio.file.{ Path => NioPath }
 
 import sbt.io.PathFinder.Combinator.SingleFilePathFinderCombinator
 import sbt.nio.{ Glob, GlobBuilder, ToGlob }

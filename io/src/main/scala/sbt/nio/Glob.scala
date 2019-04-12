@@ -18,7 +18,6 @@ import sbt.io.{ ExactFileFilter, FileFilter, PathFinder, SimpleFileFilter }
 import sbt.nio.PathNameFilter.WrappedPathFilter
 
 import scala.annotation.tailrec
-import scala.collection.immutable.VectorBuilder
 
 /**
  * Represents a filtered subtree of the file system.
@@ -159,7 +158,17 @@ object Glob {
     all(globs, view, (_, _) => true)
   private[sbt] def all(globs: Traversable[Glob],
                        view: FileTreeView.Nio[FileAttributes],
-                       filter: (Path, FileAttributes) => Boolean): Seq[(Path, FileAttributes)] = {
+                       filter: (Path, FileAttributes) => Boolean): Seq[(Path, FileAttributes)] =
+    iterator(globs, view, filter).toVector
+
+  private[sbt] def iterator(
+      globs: Traversable[Glob],
+      view: FileTreeView.Nio[FileAttributes]): Iterator[(Path, FileAttributes)] =
+    iterator(globs, view, (_, _) => true)
+  private[sbt] def iterator(
+      globs: Traversable[Glob],
+      view: FileTreeView.Nio[FileAttributes],
+      filter: (Path, FileAttributes) => Boolean): Iterator[(Path, FileAttributes)] = {
     val sorted = globs.toSeq.sorted
     val simpleGlobs = sorted.map(g => Glob(g.base, (0, g.range._2), AllPass))
     def needListDirectory(path: Path): Boolean = simpleGlobs.exists(_.filter(path.resolve("a")))
@@ -169,33 +178,49 @@ object Glob {
       (path, attributes) =>
         pathFilter(path) && filter(path, attributes)
     }
-    val result = new VectorBuilder[(Path, FileAttributes)]
-    val maybeAdd: ((Path, FileAttributes)) => Unit = {
-      case pair @ (path, attributes) =>
-        if (totalFilter(path, attributes)) result += pair
-    }
-    sorted.foreach { glob =>
-      val queue = new util.LinkedList[Path]
-      queue.add(glob.base)
+    val remainingGlobs = new util.LinkedList[Glob]()
+    sorted.foreach(remainingGlobs.add(_))
+    val remainingPaths = new util.LinkedList[Path]()
+    val iterator = new Iterator[(Path, FileAttributes)] {
+      private[this] val buffer = new util.LinkedList[(Path, FileAttributes)]
+      private[this] val maybeAdd: ((Path, FileAttributes)) => Unit = {
+        case pair @ (path, attributes) =>
+          if (totalFilter(path, attributes)) buffer.add(pair)
+          ()
+      }
       @tailrec
-      def impl(): Unit = {
-        queue.poll match {
+      private def fillBuffer(): Unit = {
+        remainingPaths.poll match {
           case null =>
+            remainingGlobs.poll() match {
+              case null =>
+              case g =>
+                if (needListDirectory(g.base)) remainingPaths.add(g.base)
+                fillBuffer()
+            }
           case path if !visited.contains(path) =>
             visited.add(path)
             view.list(Glob(path, (1, 1), AllPass)) foreach {
               case pair @ (p, attributes) if attributes.isDirectory =>
-                if (needListDirectory(p)) queue.add(p)
+                if (needListDirectory(p)) remainingPaths.add(p)
                 maybeAdd(pair)
               case pair => maybeAdd(pair)
             }
-            impl()
+            if (buffer.isEmpty) fillBuffer()
           case _ =>
         }
       }
-      impl()
+      override def hasNext: Boolean = !buffer.isEmpty
+      override def next(): (Path, FileAttributes) = {
+        val res = buffer.poll()
+        if (buffer.isEmpty) {
+          fillBuffer()
+        }
+        res
+      }
+      fillBuffer()
     }
-    result.result()
+    iterator
   }
 
   private class RangeFilter(val base: Path, val range: (Int, Int)) extends PathNameFilter {
