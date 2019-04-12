@@ -162,7 +162,7 @@ object Glob {
                        filter: (Path, FileAttributes) => Boolean): Seq[(Path, FileAttributes)] = {
     val sorted = globs.toSeq.sorted
     val simpleGlobs = sorted.map(g => Glob(g.base, (0, g.range._2), AllPass))
-    def accept(path: Path): Boolean = simpleGlobs.exists(_.filter(path.resolve("a")))
+    def needListDirectory(path: Path): Boolean = simpleGlobs.exists(_.filter(path.resolve("a")))
     val visited = new util.HashSet[Path]
     val totalFilter: (Path, FileAttributes) => Boolean = {
       val pathFilter = (path: Path) => sorted.exists(_.filter(path))
@@ -183,12 +183,15 @@ object Glob {
           case null =>
           case path if !visited.contains(path) =>
             visited.add(path)
+            val now = System.nanoTime
             view.list(Glob(path, (1, 1), AllPass)) foreach {
               case pair @ (p, attributes) if attributes.isDirectory =>
-                if (accept(p)) queue.add(p)
+                if (needListDirectory(p)) queue.add(p)
                 maybeAdd(pair)
               case pair => maybeAdd(pair)
             }
+            val elapsed = System.nanoTime - now
+            println(s"Took ${elapsed / 1.0e6} ms to visit $path")
             impl()
           case _ =>
         }
