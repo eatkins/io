@@ -173,10 +173,9 @@ object Glob {
     val simpleGlobs = sorted.map(g => Glob(g.base, (0, g.range._2), AllPass))
     def needListDirectory(path: Path): Boolean = simpleGlobs.exists(_.filter(path.resolve("a")))
     val visited = new util.HashSet[Path]
-    val totalFilter: (Path, FileAttributes) => Boolean = {
-      val pathFilter = (path: Path) => sorted.exists(_.filter(path))
-      (path, attributes) =>
-        pathFilter(path) && filter(path, attributes)
+    val pathFilter = (path: Path) => sorted.exists(_.filter(path))
+    val totalFilter: (Path, FileAttributes) => Boolean = { (path, attributes) =>
+      pathFilter(path) && filter(path, attributes)
     }
     val remainingGlobs = new util.LinkedList[Glob]()
     sorted.foreach(remainingGlobs.add(_))
@@ -195,16 +194,26 @@ object Glob {
             remainingGlobs.poll() match {
               case null =>
               case g =>
-                if (needListDirectory(g.base)) remainingPaths.add(g.base)
+                remainingPaths.add(g.base)
                 fillBuffer()
             }
           case path if !visited.contains(path) =>
             visited.add(path)
-            view.list(Glob(path, (1, 1), AllPass)) foreach {
-              case pair @ (p, attributes) if attributes.isDirectory =>
-                if (needListDirectory(p)) remainingPaths.add(p)
-                maybeAdd(pair)
-              case pair => maybeAdd(pair)
+            path.getParent match {
+              case null =>
+              case p =>
+                if (!visited.contains(p) && pathFilter(path))
+                  FileAttributes(path).foreach(a => maybeAdd(path -> a))
+            }
+            try {
+              view.list(path) foreach {
+                case pair @ (p, attributes) if attributes.isDirectory =>
+                  if (needListDirectory(p)) remainingPaths.add(p)
+                  maybeAdd(pair)
+                case pair => maybeAdd(pair)
+              }
+            } catch {
+              case _: NoSuchFileException =>
             }
             if (buffer.isEmpty) fillBuffer()
           case _ =>
