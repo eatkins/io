@@ -145,7 +145,7 @@ object Glob {
   }
   implicit def toPathFinder(glob: Glob): PathFinder = new PathFinder.GlobPathFinder(glob)
   implicit object ordering extends Ordering[Glob] {
-    override def compare(left: Glob, right: Glob): Int = right.base.compareTo(left.base) match {
+    override def compare(left: Glob, right: Glob): Int = left.base.compareTo(right.base) match {
       // We want greater depth to come first because when we are using a Seq[Glob] to
       // register with the file system cache, it is more efficient to register the broadest glob
       // first so that we don't have to list the base directory multiple times.
