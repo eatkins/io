@@ -1,11 +1,12 @@
 package sbt.internal.nio
 
+import java.io.IOException
 import java.nio.file.attribute.FileTime
 import java.nio.file.{ Files, Path => NioPath, Paths => NioPaths }
 import java.util.concurrent.{ ConcurrentHashMap, CountDownLatch, TimeUnit }
 
 import org.scalatest.{ FlatSpec, Matchers }
-import sbt.internal.nio.FileEvent.{ Creation, Deletion }
+import sbt.internal.nio.FileEvent.{ Creation, Deletion, Update }
 import sbt.io.IO
 import sbt.nio.syntax._
 import sbt.nio.{ FileAttributes, Glob }
@@ -198,14 +199,42 @@ class FileTreeRepositorySpec extends FlatSpec with Matchers {
   "updates" should "be detected" in withTempFile { file =>
     val latch = new CountDownLatch(1)
     val updatedLastModified = LastModified(2000L)
-    using(FileTreeRepository.default.map((p: NioPath, _: FileAttributes) => {
-      LastModified(Files.getLastModifiedTime(p).toMillis)
-    }, closeUnderlying = true)) { c =>
-      c.addObserver { event =>
+    using(FileTreeRepository.default) { c =>
+      val transformed = new FileTreeRepository[LastModified] {
+        private[this] val attributeMap = new java.util.HashMap[NioPath, LastModified]
+        private[this] val observers: Observers[FileEvent[LastModified]] = new Observers
+        private[this] val f: (NioPath, FileAttributes) => LastModified =
+          (p, _) => LastModified(IO.getModifiedTimeOrZero(p.toFile))
+        private[this] val handle = c.addObserver((_: FileEvent[FileAttributes]) match {
+          case Creation(path, attributes) => observers.onNext(Creation(path, f(path, attributes)))
+          case Deletion(path, attributes) => observers.onNext(Deletion(path, f(path, attributes)))
+          case Update(path, previousAttributes, attributes) =>
+            observers.onNext(Update(path, f(path, previousAttributes), f(path, attributes)))
+        })
+
+        override def register(
+            glob: Glob): Either[IOException, Observable[FileEvent[LastModified]]] = {
+          c.register(glob).map(o => Observable.map(o, (_: FileEvent[FileAttributes]).map(f)))
+        }
+        override def addObserver(observer: Observer[FileEvent[LastModified]]): AutoCloseable =
+          observers.addObserver(observer)
+        override def list(path: NioPath): Seq[(NioPath, LastModified)] = c.list(path).flatMap {
+          case (p, _) =>
+            attributeMap.get(p) match {
+              case null => None
+              case lm   => Some(p -> lm)
+            }
+        }
+        override def close(): Unit = {
+          handle.close()
+          c.close()
+        }
+      }
+      transformed.addObserver { event =>
         val lastModified = event.attributes
         if (event.exists && lastModified == updatedLastModified) latch.countDown()
       }
-      c.register(file.getParent / **)
+      transformed.register(file.getParent / **)
       val Seq(fileEntry) = c.list(file.getParent / **)
       val lastModified = fileEntry._2
       lastModified shouldBe LastModified(Files.getLastModifiedTime(file).toMillis)

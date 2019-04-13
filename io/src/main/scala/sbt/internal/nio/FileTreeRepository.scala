@@ -10,12 +10,8 @@
 
 package sbt.internal.nio
 
-import java.io.IOException
-import java.nio.file.Path
-
-import sbt.internal.nio.FileEvent.{ Creation, Deletion, Update }
 import sbt.io.WatchService
-import sbt.nio.{ FileAttributes, FileTreeView, Glob }
+import sbt.nio.{ FileAttributes, FileTreeView }
 
 /**
  * Monitors registered directories for file changes. A typical implementation will keep an
@@ -34,30 +30,6 @@ private[sbt] trait FileTreeRepository[+T]
     with AutoCloseable
 
 private[sbt] object FileTreeRepository {
-  private[sbt] implicit class Ops[T](val repo: FileTreeRepository[T]) extends AnyVal {
-    def map[U](f: (Path, T) => U, closeUnderlying: Boolean): FileTreeRepository[U] =
-      new FileTreeRepository[U] {
-        private val observers = new Observers[FileEvent[U]]
-        private val handle = repo.addObserver((_: FileEvent[T]) match {
-          case Creation(path, attributes) => observers.onNext(Creation(path, f(path, attributes)))
-          case Deletion(path, attributes) => observers.onNext(Deletion(path, f(path, attributes)))
-          case Update(path, previousAttributes, attributes) =>
-            observers.onNext(Update(path, f(path, previousAttributes), f(path, attributes)))
-        })
-        override def register(glob: Glob): Either[IOException, Observable[FileEvent[U]]] =
-          repo
-            .register(glob)
-            .map((o: Observable[FileEvent[T]]) => Observable.map(o, (_: FileEvent[T]).map(f)))
-        override def addObserver(observer: Observer[FileEvent[U]]): AutoCloseable =
-          observers.addObserver(observer)
-        override def list(glob: Glob): Seq[(Path, U)] =
-          (repo: FileTreeView.Nio[T]).map(f).list(glob)
-        override def close(): Unit = {
-          handle.close()
-          if (closeUnderlying) repo.close()
-        }
-      }
-  }
 
   /**
    * Create a [[FileTreeRepository]]. The generated repository will cache the file system tree for the

@@ -19,8 +19,7 @@ private[nio] class FileCache[+T](converter: Path => T, globs: mutable.Set[Glob])
   import FileCache._
   private[this] val files =
     Collections.synchronizedSortedMap(new ConcurrentSkipListMap[Path, T])
-  private[this] val view: FileTreeView.Nio[T] =
-    FileTreeView.DEFAULT_NIO.map((p: Path, _: FileAttributes) => converter(p))
+  private[this] val view: FileTreeView.Nio[FileAttributes] = FileTreeView.DEFAULT_NIO
   private[nio] def update(
       path: Path,
       attributes: FileAttributes,
@@ -108,7 +107,7 @@ private[nio] class FileCache[+T](converter: Path => T, globs: mutable.Set[Glob])
       val asScala = newFiles.asScala
       asScala += (glob.base -> converter(glob.base))
       if (fileAttributes.isDirectory)
-        newFiles.asScala ++= view.list(glob)
+        newFiles.asScala ++= view.list(glob).map { case (p, _) => p -> converter(p) }
       files.putAll(newFiles)
     }
   }
