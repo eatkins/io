@@ -19,4 +19,12 @@ package object syntax extends syntax0
 private[sbt] trait syntax0 {
   implicit def pathToPathOps(path: Path): PathOps = new PathOps(path)
   implicit def fileToFileOps(file: File): FileOps = new FileOps(file)
+
+  /**
+   * Converts a glob string to a PathFilter.
+   * @param glob the glob string, e.g. "**<code>/</code>*.scala"
+   * @return the Glob the input represents. This may throw an exception if the string cannot be
+   *         parsed as a glob.
+   */
+  implicit def stringToGlob(glob: String): Glob = Glob(glob)
 }

@@ -14,6 +14,9 @@ import java.io.{ File, IOException }
 import java.nio.file.Files
 import java.util.regex.Pattern
 
+import sbt.nio.file.PathFilter.PathFilterOps
+import sbt.nio.file.{ IsHidden, PathFilter }
+
 /** A `java.io.FileFilter` with additional methods for combining filters. */
 trait FileFilter extends java.io.FileFilter {
 
@@ -197,6 +200,21 @@ final class SuffixFilter(val suffix: String) extends NameFilter {
 
 /** A [[FileFilter]] that selects files that are hidden according to `java.nio.file.Files.isHidden` or if they start with a dot (`.`). */
 case object HiddenFileFilter extends FileFilter {
+
+  /**
+   * Extends [[sbt.io.HiddenFileFilter]] so that it can be combined with an
+   * [[sbt.nio.file.PathFilter]] instances.
+   * @param hiddenFileFilter the [[sbt.io.HiddenFileFilter]] singleton that is extended
+   */
+  implicit class IoHiddenFilterOps(val hiddenFileFilter: sbt.io.HiddenFileFilter.type)
+      extends AnyVal
+      with PathFilterOps {
+    override def &&(other: PathFilter): PathFilter = IsHidden && other
+    override def ||(other: PathFilter): PathFilter = IsHidden || other
+    override def unary_! : PathFilter = !IsHidden
+    def toNio: PathFilter = IsHidden
+  }
+
   def accept(file: File): Boolean =
     try Files.isHidden(file.toPath) && file.getName != "."
     catch { case _: IOException => false }
@@ -214,6 +232,21 @@ case object ExistsFileFilter extends FileFilter {
 
 /** A [[FileFilter]] that selects files that are a directory according to `java.io.File.isDirectory`. */
 case object DirectoryFilter extends FileFilter {
+
+  /**
+   * Extends [[sbt.io.DirectoryFilter]] so that it can be combined with [[sbt.nio.file.PathFilter]]
+   * instances.
+   * @param directoryFilter the [[sbt.io.DirectoryFilter]] singleton that is extended
+   */
+  implicit class IoDirectoryFilterOps(val directoryFilter: sbt.io.DirectoryFilter.type)
+      extends AnyVal
+      with PathFilterOps {
+    override def &&(other: PathFilter): PathFilter = sbt.nio.file.IsDirectory && other
+    override def ||(other: PathFilter): PathFilter = sbt.nio.file.IsDirectory || other
+    override def unary_! : PathFilter = !sbt.nio.file.IsDirectory
+    def toNio: PathFilter = sbt.nio.file.IsDirectory
+  }
+
   def accept(file: File): Boolean = file.isDirectory
 }
 
